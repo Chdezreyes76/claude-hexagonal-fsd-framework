@@ -4,7 +4,7 @@ description: Patrones de arquitectura hexagonal del backend FastAPI. Usar cuando
 allowed-tools: Read, Glob, Grep, Write, Edit
 ---
 
-# Arquitectura Hexagonal - Backend Gextiona
+# Arquitectura Hexagonal - Backend Patterns
 
 Este skill define los patrones de arquitectura hexagonal (Ports & Adapters) del backend FastAPI.
 

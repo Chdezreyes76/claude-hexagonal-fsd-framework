@@ -56,3 +56,13 @@ SETUP.ps1
 PARAMETRIZE.ps1
 parametrize-simple.ps1
 generate-cli.ps1
+
+# Internal documentation (not for public repo)
+FRAMEWORK_COMPLETE.md
+FRAMEWORK_STATUS.md
+INSTRUCCIONES.md
+cli/FILES_CREATED.txt
+cli/DELIVERY_SUMMARY.md
+cli/IMPLEMENTATION_SUMMARY.md
+cli/MANIFEST.md
+**/EXAMPLE_*.md

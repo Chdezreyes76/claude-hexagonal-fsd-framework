@@ -31,21 +31,21 @@ All other values will use defaults from `config/defaults.json`.
   "frameworkVersion": "1.0.0",
 
   "project": {
-    "name": "Gextiona Dashboard",
-    "nameSnake": "gextiona_dashboard",
-    "nameKebab": "gextiona-dashboard",
-    "description": "Cost management dashboard for payroll analysis",
-    "version": "1.2.0"
+    "name": "MyApp",
+    "nameSnake": "myapp",
+    "nameKebab": "myapp",
+    "description": "Sample application description",
+    "version": "1.0.0"
   },
 
   "team": {
     "owner": {
-      "name": "Carlos Hernandez",
-      "email": "carlos@laorotava.org"
+      "name": "Your Name",
+      "email": "you@example.com"
     },
     "github": {
-      "owner": "Chdezreyes76",
-      "repo": "GextionaDashboard",
+      "owner": "yourusername",
+      "repo": "myapp",
       "mainBranch": "main"
     }
   },

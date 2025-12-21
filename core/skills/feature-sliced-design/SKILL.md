@@ -4,7 +4,7 @@ description: Patrones de Feature-Sliced Design del frontend React. Usar cuando s
 allowed-tools: Read, Glob, Grep, Write, Edit
 ---
 
-# Feature-Sliced Design - Frontend Gextiona
+# Feature-Sliced Design - Frontend Patterns
 
 Este skill define los patrones de Feature-Sliced Design (FSD) del frontend React 19 + TypeScript.
 
