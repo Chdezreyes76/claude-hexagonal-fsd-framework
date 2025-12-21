@@ -50,3 +50,9 @@ test-todo-app/
 # Framework-specific
 *.bak
 *.orig
+
+# Development scripts (internal use only)
+SETUP.ps1
+PARAMETRIZE.ps1
+parametrize-simple.ps1
+generate-cli.ps1
