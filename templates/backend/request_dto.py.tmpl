@@ -1,0 +1,25 @@
+from pydantic import BaseModel
+from typing import Optional
+
+
+class Crear{{Domain}}RequestDTO(BaseModel):
+    """DTO para crear {{Domain}}."""
+
+    nombre: str
+    descripcion: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nombre": "Ejemplo",
+                "descripcion": "Descripcion de ejemplo"
+            }
+        }
+
+
+class Actualizar{{Domain}}RequestDTO(BaseModel):
+    """DTO para actualizar {{Domain}}."""
+
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    activo: Optional[bool] = None

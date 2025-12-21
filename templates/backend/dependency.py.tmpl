@@ -1,0 +1,27 @@
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from core.database import get_session
+from adapter.outbound.database.repositories.{{domain}}_repository import {{Domain}}Repository
+from application.use_cases.{{domain}}.listar_{{domain}}_use_case import Listar{{Domain}}UseCase
+from application.use_cases.{{domain}}.crear_{{domain}}_use_case import Crear{{Domain}}UseCase
+
+
+async def get_{{domain}}_repository(
+    session: AsyncSession = Depends(get_session)
+) -> {{Domain}}Repository:
+    """Obtener instancia del repositorio."""
+    return {{Domain}}Repository(session)
+
+
+async def get_listar_{{domain}}_use_case(
+    repo: {{Domain}}Repository = Depends(get_{{domain}}_repository)
+) -> Listar{{Domain}}UseCase:
+    """Obtener instancia del caso de uso listar."""
+    return Listar{{Domain}}UseCase(repo)
+
+
+async def get_crear_{{domain}}_use_case(
+    repo: {{Domain}}Repository = Depends(get_{{domain}}_repository)
+) -> Crear{{Domain}}UseCase:
+    """Obtener instancia del caso de uso crear."""
+    return Crear{{Domain}}UseCase(repo)

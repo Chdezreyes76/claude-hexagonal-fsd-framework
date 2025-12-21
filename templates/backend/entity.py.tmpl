@@ -1,0 +1,15 @@
+from dataclasses import dataclass
+from typing import Optional
+from datetime import datetime
+
+
+@dataclass
+class {{Domain}}:
+    """Entidad de dominio {{Domain}}."""
+
+    id: Optional[int] = None
+    nombre: str = ""
+    descripcion: Optional[str] = None
+    activo: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None

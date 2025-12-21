@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "version": "1.0.0"
+  },
+  "stack": {
+    "backend": {
+      "language": "python",
+      "version": "3.11",
+      "framework": "fastapi",
+      "architecture": "hexagonal",
+      "dirName": "backend",
+      "port": 8000
+    },
+    "frontend": {
+      "language": "typescript",
+      "framework": "react",
+      "version": "19",
+      "architecture": "feature-sliced-design",
+      "dirName": "frontend",
+      "port": 3000
+    },
+    "database": {
+      "type": "mysql",
+      "version": "8.0",
+      "port": 3306,
+      "migrations": "alembic"
+    }
+  },
+  "paths": {
+    "backend": {
+      "root": "./backend",
+      "domain": "./backend/domain",
+      "application": "./backend/application",
+      "adapter": "./backend/adapter"
+    },
+    "frontend": {
+      "root": "./frontend",
+      "src": "./frontend/src",
+      "components": "./frontend/src/components",
+      "entities": "./frontend/src/entities",
+      "features": "./frontend/src/features",
+      "widgets": "./frontend/src/widgets",
+      "pages": "./frontend/src/pages"
+    }
+  },
+  "domains": {
+    "namingConvention": {
+      "entity": "PascalCase",
+      "useCase": "{action}_{domain}_use_case.py",
+      "repository": "{domain}_repository.py",
+      "router": "{domain}_router.py"
+    }
+  },
+  "qa": {
+    "enabled": true,
+    "emailReports": false,
+    "localReportPath": "./.claude/qa-reports"
+  },
+  "workflows": {
+    "autoImplement": true,
+    "autoReview": true,
+    "autoMerge": false,
+    "requireTests": false
+  },
+  "customization": {
+    "responsePattern": "ResponseDTO",
+    "queryClient": "tanstack-query",
+    "styling": "tailwindcss",
+    "stateManagement": "react-query"
+  }
+}

@@ -1,0 +1,32 @@
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from domain.entities.{{domain}} import {{Domain}}
+
+
+class {{Domain}}Port(ABC):
+    """Puerto (interfaz) para operaciones de {{Domain}}."""
+
+    @abstractmethod
+    async def crear(self, entity: {{Domain}}) -> {{Domain}}:
+        """Crear un nuevo {{domain}}."""
+        pass
+
+    @abstractmethod
+    async def obtener_por_id(self, id: int) -> Optional[{{Domain}}]:
+        """Obtener {{domain}} por ID."""
+        pass
+
+    @abstractmethod
+    async def listar(self) -> List[{{Domain}}]:
+        """Listar todos los {{domains}}."""
+        pass
+
+    @abstractmethod
+    async def actualizar(self, entity: {{Domain}}) -> {{Domain}}:
+        """Actualizar un {{domain}} existente."""
+        pass
+
+    @abstractmethod
+    async def eliminar(self, id: int) -> bool:
+        """Eliminar un {{domain}} por ID."""
+        pass

@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+
+/**
+ * Claude Hexagonal+FSD Framework CLI
+ *
+ * Executable entry point for the CLI tool
+ */
+
+require('../index.js');

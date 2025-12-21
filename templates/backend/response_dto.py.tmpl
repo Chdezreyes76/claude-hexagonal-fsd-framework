@@ -1,0 +1,17 @@
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+
+
+class {{Domain}}ResponseDTO(BaseModel):
+    """DTO de respuesta para {{Domain}}."""
+
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    activo: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

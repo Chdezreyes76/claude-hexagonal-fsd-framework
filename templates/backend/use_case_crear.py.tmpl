@@ -1,0 +1,20 @@
+from application.ports.{{domain}}.{{domain}}_port import {{Domain}}Port
+from application.dtos.{{domain}}.{{domain}}_request_dto import Crear{{Domain}}RequestDTO
+from application.dtos.{{domain}}.{{domain}}_response_dto import {{Domain}}ResponseDTO
+from domain.entities.{{domain}} import {{Domain}}
+
+
+class Crear{{Domain}}UseCase:
+    """Caso de uso para crear {{domain}}."""
+
+    def __init__(self, {{domain}}_port: {{Domain}}Port):
+        self.{{domain}}_port = {{domain}}_port
+
+    async def execute(self, dto: Crear{{Domain}}RequestDTO) -> {{Domain}}ResponseDTO:
+        """Ejecutar el caso de uso."""
+        entity = {{Domain}}(
+            nombre=dto.nombre,
+            descripcion=dto.descripcion
+        )
+        created = await self.{{domain}}_port.crear(entity)
+        return {{Domain}}ResponseDTO.model_validate(created)

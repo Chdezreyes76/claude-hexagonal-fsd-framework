@@ -1,0 +1,85 @@
+import { useState } from 'react';
+import { use{{Domain}}s, useEliminar{{Domain}} } from '@/hooks/use{{Domain}}';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { {{Domain}} } from '@/entities/{{domain}}/model/types';
+
+export const {{Domain}}Page = () => {
+  const [selected, setSelected] = useState<{{Domain}} | null>(null);
+  const { data: items, isLoading, error } = use{{Domain}}s();
+  const eliminarMutation = useEliminar{{Domain}}();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Cargando...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-500">Error: {error.message}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">{{Domain}}</h1>
+        <Button>Nuevo {{Domain}}</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items?.map((item) => (
+          <Card
+            key={item.id}
+            className={`cursor-pointer transition-shadow hover:shadow-md ${
+              selected?.id === item.id ? 'ring-2 ring-blue-500' : ''
+            }`}
+            onClick={() => setSelected(item)}
+          >
+            <CardHeader>
+              <CardTitle className="text-lg">{item.nombre}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500 mb-4">
+                {item.descripcion || 'Sin descripcion'}
+              </p>
+              <div className="flex justify-between items-center">
+                <span
+                  className={`text-xs px-2 py-1 rounded ${
+                    item.activo
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {item.activo ? 'Activo' : 'Inactivo'}
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    eliminarMutation.mutate(item.id);
+                  }}
+                  disabled={eliminarMutation.isPending}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {items?.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No hay {{domains}} registrados
+        </div>
+      )}
+    </div>
+  );
+};

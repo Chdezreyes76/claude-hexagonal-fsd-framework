@@ -1,0 +1,101 @@
+{
+  "name": "issue-workflow",
+  "version": "2.1.0",
+  "description": "Orquesta el flujo completo de un issue con implementación automática mediante agentes especializados y pre-code-review",
+
+  "automation": {
+    "enabled": true,
+    "autoImplement": true,
+    "autoCommit": true,
+    "autoPR": true,
+    "autoReview": true,
+    "autoMerge": true,
+    "maxRetries": 3,
+    "requireTestsPass": true
+  },
+
+  "detection": {
+    "method": "analysis",
+    "askUserIfUnknown": true,
+    "confidenceThreshold": 0.5
+  },
+
+  "implementers": {
+    "backend": {
+      "agent": "backend-implementer",
+      "enabled": true,
+      "skills": ["hexagonal-architecture", "alembic-migrations"],
+      "validateTests": true,
+      "validateMigrations": true
+    },
+    "frontend": {
+      "agent": "frontend-implementer",
+      "enabled": true,
+      "skills": ["feature-sliced-design"],
+      "validateTypeCheck": true,
+      "validateLint": true,
+      "validateBuild": true
+    },
+    "fullstack": {
+      "agent": "fullstack-implementer",
+      "enabled": true,
+      "skills": ["hexagonal-architecture", "feature-sliced-design", "alembic-migrations"],
+      "validateContract": true,
+      "backendFirst": true
+    }
+  },
+
+  "testRunner": {
+    "enabled": true,
+    "agent": "test-runner",
+    "blockCommitOnFailure": true,
+    "runParallel": true,
+    "timeout": 300
+  },
+
+  "preReview": {
+    "enabled": true,
+    "blockOnCritical": true,
+    "askOnMinor": true,
+    "maxCorrectionCycles": 3,
+    "skipPostReview": false
+  },
+
+  "workflow": {
+    "stopOnReviewFails": true,
+    "loopUntilNoIssues": false,
+    "maxIssuesPerSession": null,
+    "priorityFilter": ["critical", "high", "medium", "low"],
+    "excludeLabels": ["status:blocked", "status:duplicate"]
+  },
+
+  "quality": {
+    "requireTests": false,
+    "requireDocs": false,
+    "requireTypeScript": true,
+    "requireFSD": true,
+    "requireCommitFormat": true,
+    "requireContractValidation": true
+  },
+
+  "notifications": {
+    "showProgress": true,
+    "showDetails": true,
+    "showRetryAttempts": true,
+    "beepOnReviewFail": true,
+    "pauseOnErrors": true
+  },
+
+  "defaults": {
+    "branchPrefix": "auto",
+    "commitTemplate": "conventional",
+    "prTemplate": "detailed",
+    "reviewLevel": "strict"
+  },
+
+  "fallback": {
+    "manualImplementationOnFailure": true,
+    "skipIssueOnMaxRetries": false,
+    "abortWorkflowOnCriticalError": true
+  }
+}

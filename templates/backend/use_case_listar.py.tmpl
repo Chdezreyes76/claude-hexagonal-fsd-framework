@@ -1,0 +1,15 @@
+from typing import List
+from application.ports.{{domain}}.{{domain}}_port import {{Domain}}Port
+from application.dtos.{{domain}}.{{domain}}_response_dto import {{Domain}}ResponseDTO
+
+
+class Listar{{Domain}}UseCase:
+    """Caso de uso para listar {{domains}}."""
+
+    def __init__(self, {{domain}}_port: {{Domain}}Port):
+        self.{{domain}}_port = {{domain}}_port
+
+    async def execute(self) -> List[{{Domain}}ResponseDTO]:
+        """Ejecutar el caso de uso."""
+        entities = await self.{{domain}}_port.listar()
+        return [{{Domain}}ResponseDTO.model_validate(e) for e in entities]

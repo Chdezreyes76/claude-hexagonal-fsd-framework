@@ -1,0 +1,38 @@
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy.sql import func
+from core.database import Base
+from domain.entities.{{domain}} import {{Domain}}
+
+
+class {{Domain}}Model(Base):
+    """Modelo SQLAlchemy para {{Domain}}."""
+
+    __tablename__ = "{{domain}}s"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+
+    def to_entity(self) -> {{Domain}}:
+        """Convertir modelo a entidad de dominio."""
+        return {{Domain}}(
+            id=self.id,
+            nombre=self.nombre,
+            descripcion=self.descripcion,
+            activo=self.activo,
+            created_at=self.created_at,
+            updated_at=self.updated_at
+        )
+
+    @classmethod
+    def from_entity(cls, entity: {{Domain}}) -> "{{Domain}}Model":
+        """Crear modelo desde entidad de dominio."""
+        return cls(
+            id=entity.id,
+            nombre=entity.nombre,
+            descripcion=entity.descripcion,
+            activo=entity.activo
+        )

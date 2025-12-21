@@ -1,0 +1,41 @@
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List
+from application.dtos.common.base_response_dto import ResponseDTO
+from application.dtos.{{domain}}.{{domain}}_request_dto import (
+    Crear{{Domain}}RequestDTO,
+    Actualizar{{Domain}}RequestDTO
+)
+from application.dtos.{{domain}}.{{domain}}_response_dto import {{Domain}}ResponseDTO
+from application.use_cases.{{domain}}.listar_{{domain}}_use_case import Listar{{Domain}}UseCase
+from application.use_cases.{{domain}}.crear_{{domain}}_use_case import Crear{{Domain}}UseCase
+from adapter.inbound.api.dependencies.{{domain}}.{{domain}}_dependency import (
+    get_listar_{{domain}}_use_case,
+    get_crear_{{domain}}_use_case
+)
+
+router = APIRouter(prefix="/{{domains}}", tags=["{{Domain}}"])
+
+
+@router.get("", response_model=ResponseDTO[List[{{Domain}}ResponseDTO]])
+async def listar_{{domains}}(
+    use_case: Listar{{Domain}}UseCase = Depends(get_listar_{{domain}}_use_case)
+):
+    """Listar todos los {{domains}}."""
+    try:
+        result = await use_case.execute()
+        return ResponseDTO.success(data=result)
+    except Exception as e:
+        return ResponseDTO.error(message=str(e))
+
+
+@router.post("", response_model=ResponseDTO[{{Domain}}ResponseDTO])
+async def crear_{{domain}}(
+    dto: Crear{{Domain}}RequestDTO,
+    use_case: Crear{{Domain}}UseCase = Depends(get_crear_{{domain}}_use_case)
+):
+    """Crear un nuevo {{domain}}."""
+    try:
+        result = await use_case.execute(dto)
+        return ResponseDTO.success(data=result, message="{{Domain}} creado correctamente")
+    except Exception as e:
+        return ResponseDTO.error(message=str(e))

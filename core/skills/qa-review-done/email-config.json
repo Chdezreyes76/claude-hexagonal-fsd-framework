@@ -1,0 +1,58 @@
+﻿{
+  "enabled": true,
+  "service": "smtp",
+  "from": "qa-bot@{{projectNameKebab}}.local",
+  "to": "{{userEmail}}",
+  "subject_prefix": "[QA Review]",
+  "include_screenshots": true,
+  "priority": "normal",
+  "fallback": "log",
+  "smtp": {
+    "host": "localhost",
+    "port": 1025,
+    "secure": false,
+    "auth": null,
+    "comment": "Servidor SMTP local (ej: MailHog, smtp4dev, Papercut). Puerto común: 1025 o 25"
+  },
+  "alternative_services": {
+    "sendgrid": {
+      "enabled": false,
+      "api_key_env": "SENDGRID_API_KEY",
+      "from": "qa-bot@gextiona.com"
+    },
+    "mailgun": {
+      "enabled": false,
+      "api_key_env": "MAILGUN_API_KEY",
+      "domain_env": "MAILGUN_DOMAIN"
+    },
+    "gmail_smtp": {
+      "enabled": false,
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "secure": true,
+      "auth": {
+        "user_env": "GMAIL_USER",
+        "pass_env": "GMAIL_APP_PASSWORD"
+      }
+    }
+  },
+  "local_servers_info": {
+    "mailhog": {
+      "description": "Servidor SMTP de pruebas popular",
+      "install": "docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog",
+      "web_ui": "http://localhost:8025",
+      "smtp_port": 1025
+    },
+    "smtp4dev": {
+      "description": "Servidor SMTP para desarrollo (Windows)",
+      "install": "docker run -d -p 3000:80 -p 2525:25 rnwood/smtp4dev",
+      "web_ui": "http://localhost:3000",
+      "smtp_port": 2525
+    },
+    "papercut": {
+      "description": "Cliente SMTP simple para Windows",
+      "download": "https://github.com/ChangemakerStudios/Papercut-SMTP",
+      "smtp_port": 25
+    }
+  }
+}

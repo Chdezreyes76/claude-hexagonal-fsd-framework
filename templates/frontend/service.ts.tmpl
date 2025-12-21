@@ -1,0 +1,44 @@
+import api from '@/lib/api';
+import type {
+  {{Domain}},
+  Crear{{Domain}}Request,
+  Actualizar{{Domain}}Request,
+  {{Domain}}Filters
+} from '@/entities/{{domain}}/model/types';
+
+const BASE_URL = '/{{domains}}';
+
+export const {{domain}}Service = {
+  getAll: async (filters?: {{Domain}}Filters): Promise<{{Domain}}[]> => {
+    const params = new URLSearchParams();
+    if (filters?.activo !== undefined) {
+      params.append('activo', String(filters.activo));
+    }
+    if (filters?.search) {
+      params.append('search', filters.search);
+    }
+    const query = params.toString();
+    const url = query ? `${BASE_URL}?${query}` : BASE_URL;
+    const response = await api.get(url);
+    return response.data.data;
+  },
+
+  getById: async (id: number): Promise<{{Domain}}> => {
+    const response = await api.get(`${BASE_URL}/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data: Crear{{Domain}}Request): Promise<{{Domain}}> => {
+    const response = await api.post(BASE_URL, data);
+    return response.data.data;
+  },
+
+  update: async (id: number, data: Actualizar{{Domain}}Request): Promise<{{Domain}}> => {
+    const response = await api.put(`${BASE_URL}/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`${BASE_URL}/${id}`);
+  },
+};

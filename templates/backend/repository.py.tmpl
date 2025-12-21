@@ -1,0 +1,59 @@
+from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from application.ports.{{domain}}.{{domain}}_port import {{Domain}}Port
+from domain.entities.{{domain}} import {{Domain}}
+from adapter.outbound.database.models.{{domain}}_model import {{Domain}}Model
+
+
+class {{Domain}}Repository({{Domain}}Port):
+    """Repositorio para operaciones de {{Domain}} en base de datos."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def crear(self, entity: {{Domain}}) -> {{Domain}}:
+        """Crear un nuevo {{domain}}."""
+        model = {{Domain}}Model.from_entity(entity)
+        self.session.add(model)
+        await self.session.commit()
+        await self.session.refresh(model)
+        return model.to_entity()
+
+    async def obtener_por_id(self, id: int) -> Optional[{{Domain}}]:
+        """Obtener {{domain}} por ID."""
+        result = await self.session.execute(
+            select({{Domain}}Model).where({{Domain}}Model.id == id)
+        )
+        model = result.scalar_one_or_none()
+        return model.to_entity() if model else None
+
+    async def listar(self) -> List[{{Domain}}]:
+        """Listar todos los {{domains}}."""
+        result = await self.session.execute(
+            select({{Domain}}Model).where({{Domain}}Model.activo == True)
+        )
+        models = result.scalars().all()
+        return [m.to_entity() for m in models]
+
+    async def actualizar(self, entity: {{Domain}}) -> {{Domain}}:
+        """Actualizar un {{domain}} existente."""
+        model = await self.session.get({{Domain}}Model, entity.id)
+        if not model:
+            raise ValueError(f"{{Domain}} con id {entity.id} no encontrado")
+
+        model.nombre = entity.nombre
+        model.descripcion = entity.descripcion
+        model.activo = entity.activo
+        await self.session.commit()
+        await self.session.refresh(model)
+        return model.to_entity()
+
+    async def eliminar(self, id: int) -> bool:
+        """Eliminar un {{domain}} por ID."""
+        model = await self.session.get({{Domain}}Model, id)
+        if model:
+            await self.session.delete(model)
+            await self.session.commit()
+            return True
+        return False

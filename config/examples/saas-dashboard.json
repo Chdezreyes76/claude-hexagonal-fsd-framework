@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "SaaS Dashboard",
+    "nameSnake": "saas_dashboard",
+    "nameKebab": "saas-dashboard",
+    "description": "Multi-tenant SaaS dashboard with analytics and reporting",
+    "version": "1.0.0"
+  },
+  "team": {
+    "owner": {
+      "name": "Development Team",
+      "email": "dev@example.com"
+    },
+    "github": {
+      "owner": "myorg",
+      "repo": "saas-dashboard",
+      "mainBranch": "main"
+    }
+  },
+  "stack": {
+    "backend": {
+      "language": "python",
+      "version": "3.11",
+      "framework": "fastapi",
+      "architecture": "hexagonal",
+      "dirName": "backend",
+      "port": 8000
+    },
+    "frontend": {
+      "language": "typescript",
+      "framework": "react",
+      "version": "19",
+      "architecture": "feature-sliced-design",
+      "dirName": "frontend",
+      "port": 3000
+    },
+    "database": {
+      "type": "postgresql",
+      "version": "15",
+      "name": "saas_dashboard_dev",
+      "port": 5432,
+      "migrations": "alembic"
+    }
+  },
+  "domains": {
+    "examples": [
+      "usuarios",
+      "tenants",
+      "analytics",
+      "reportes",
+      "billing"
+    ]
+  },
+  "paths": {
+    "backend": {
+      "root": "./backend",
+      "domain": "./backend/domain",
+      "application": "./backend/application",
+      "adapter": "./backend/adapter"
+    },
+    "frontend": {
+      "root": "./frontend",
+      "src": "./frontend/src"
+    }
+  },
+  "qa": {
+    "enabled": true,
+    "emailReports": false,
+    "localReportPath": "./.claude/qa-reports"
+  },
+  "workflows": {
+    "autoImplement": true,
+    "autoReview": true,
+    "autoMerge": false,
+    "requireTests": true
+  }
+}
