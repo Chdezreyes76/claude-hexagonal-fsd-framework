@@ -1,7 +1,7 @@
 ---
 name: issue-analyzer
 description: Agente especializado en analizar issues y detectar automáticamente si requiere implementación de backend, frontend o fullstack. Usa análisis semántico, no labels.
-allowed-tools: Read, Bash(gh issue:*)
+allowed-tools: Read, Glob, Bash(gh issue:*)
 agent-type: analyzer
 retry-attempts: 0
 ---
@@ -92,9 +92,9 @@ Extraer:
 ✅ "Crear endpoint /api/usuarios y consumirlo desde UserPanel"
 ```
 
-### PASO 3: Scoring System
+### PASO 3: Scoring System (Básico)
 
-Asignar puntuación a cada categoría:
+Asignar puntuación a cada categoría usando keywords y paths:
 
 ```javascript
 score = {
@@ -125,6 +125,243 @@ if (body.match(/frontend\/src\/.*\.tsx?/)) score.frontend += 5
 // Analizar labels (pista secundaria)
 if (labels.includes('area: backend')) score.backend += 1
 if (labels.includes('area: frontend')) score.frontend += 1
+```
+
+### PASO 3.5: Deep File Analysis (Estrategia Avanzada - Nuevo)
+
+**Cuándo usar**: Modo autónomo con `--auto-classify-strategy=analyze-files`
+
+Si el scoring básico resulta en confianza < 70% O si se requiere máxima precisión, analizar el contenido real de los archivos mencionados:
+
+#### 1. Extraer Archivos Mencionados
+
+```javascript
+// Buscar paths en el body del issue
+const filePatterns = [
+  /(?:backend|frontend)\/[a-zA-Z0-9_\/.-]+\.(py|ts|tsx|js|jsx)/g,
+  /(?:Archivo|File|Path):\s*([^\s\n]+)/g
+]
+
+const mentionedFiles = []
+filePatterns.forEach(pattern => {
+  const matches = body.match(pattern)
+  if (matches) {
+    mentionedFiles.push(...matches)
+  }
+})
+
+console.log(`📁 Archivos mencionados: ${mentionedFiles.length}`)
+```
+
+#### 2. Leer Contenido de Archivos
+
+Para cada archivo mencionado que exista:
+
+```javascript
+for (const filePath of mentionedFiles) {
+  try {
+    // Intentar leer el archivo
+    const content = await Read(filePath)
+
+    console.log(`✅ Leyendo: ${filePath}`)
+
+    // Analizar contenido
+    analyzeFileContent(filePath, content, score)
+  } catch (error) {
+    console.log(`⚠️ No se pudo leer: ${filePath} (posiblemente no existe)`)
+    // Continuar con análisis básico
+  }
+}
+```
+
+#### 3. Detectar Patterns en Contenido
+
+Analizar el contenido del archivo para detectar el stack:
+
+```javascript
+function analyzeFileContent(filePath, content, score) {
+  const lines = content.split('\n')
+
+  // BACKEND PATTERNS
+  // Python imports
+  if (content.match(/^import\s+(fastapi|sqlalchemy|pydantic|alembic)/m)) {
+    score.backend += 10
+    evidence.push('Python import: FastAPI/SQLAlchemy/Pydantic')
+  }
+
+  if (content.match(/^from\s+(application|domain|adapter|backend)\./m)) {
+    score.backend += 8
+    evidence.push('Hexagonal architecture import')
+  }
+
+  if (content.match(/class\s+\w+Use[Cc]ase/)) {
+    score.backend += 7
+    evidence.push('Use Case class detected')
+  }
+
+  if (content.match(/class\s+\w+Repository/)) {
+    score.backend += 7
+    evidence.push('Repository class detected')
+  }
+
+  if (content.match(/class\s+\w+\(Base[Mm]odel\)/)) {
+    score.backend += 5
+    evidence.push('Pydantic model detected')
+  }
+
+  if (content.match(/@router\.(get|post|put|delete|patch)/)) {
+    score.backend += 8
+    evidence.push('FastAPI router decorator')
+  }
+
+  // FRONTEND PATTERNS
+  // TypeScript/React imports
+  if (content.match(/^import\s+.*from\s+['"]react['"]/m)) {
+    score.frontend += 10
+    evidence.push('React import detected')
+  }
+
+  if (content.match(/^import\s+.*\s+from\s+['"]@\/(features|entities|widgets|pages|shared)['"]/m)) {
+    score.frontend += 8
+    evidence.push('FSD import pattern detected')
+  }
+
+  if (content.match(/export\s+(default\s+)?function\s+\w+\(/) ||
+      content.match(/const\s+\w+:\s*React\.FC/)) {
+    score.frontend += 7
+    evidence.push('React component detected')
+  }
+
+  if (content.match(/export\s+function\s+use[A-Z]\w+\(/)) {
+    score.frontend += 8
+    evidence.push('Custom React hook detected')
+  }
+
+  if (content.match(/interface\s+\w+Props/)) {
+    score.frontend += 5
+    evidence.push('TypeScript Props interface')
+  }
+
+  if (content.match(/className=/)) {
+    score.frontend += 4
+    evidence.push('JSX className (React)')
+  }
+
+  if (content.match(/useState|useEffect|useMemo|useCallback/)) {
+    score.frontend += 6
+    evidence.push('React hooks usage')
+  }
+
+  // Type definitions
+  if (content.match(/export\s+(interface|type)\s+\w+/)) {
+    // Could be either - check context
+    if (filePath.includes('frontend')) {
+      score.frontend += 3
+      evidence.push('TypeScript type definition (frontend)')
+    } else if (filePath.includes('backend')) {
+      score.backend += 3
+      evidence.push('Python type hints (backend)')
+    }
+  }
+
+  console.log(`   Análisis de ${filePath}:`)
+  console.log(`   Backend score: +${scoreIncrease.backend}`)
+  console.log(`   Frontend score: +${scoreIncrease.frontend}`)
+}
+```
+
+#### 4. Actualizar Confianza
+
+Después del análisis profundo, la confianza aumenta significativamente:
+
+```javascript
+// Scoring básico
+if (score.backend >= 5 || score.frontend >= 5) {
+  baseConfidence = 'medium'  // 50-70%
+}
+
+// Scoring profundo (con análisis de archivos)
+if (score.backend >= 15 || score.frontend >= 15) {
+  confidence = 'very high'  // 90-100%
+} else if (score.backend >= 10 || score.frontend >= 10) {
+  confidence = 'high'  // 70-90%
+}
+
+// Si se leyeron archivos pero no hay evidencia clara
+if (mentionedFiles.length > 0 && score.backend === 0 && score.frontend === 0) {
+  confidence = 'low'
+  reason = 'Archivos mencionados pero sin patterns claros de backend/frontend'
+}
+```
+
+#### 5. Ejemplo de Análisis Profundo
+
+```
+Issue #142: "Refactor authentication logic"
+
+PASO 1: Scoring básico
+  - Keywords: ninguno claro
+  - Files mentioned: "backend/auth/service.py", "frontend/src/auth/hooks/useAuth.ts"
+  - Score básico: backend=5, frontend=5
+  - Confianza básica: medium (ambiguo)
+
+PASO 3.5: Deep analysis
+  📁 Leyendo backend/auth/service.py...
+  ✅ Detectado:
+     - Python import: FastAPI/Pydantic
+     - Use Case class: AuthenticateUserUseCase
+     - Backend score: +18
+
+  📁 Leyendo frontend/src/auth/hooks/useAuth.ts...
+  ✅ Detectado:
+     - React hooks usage (useState, useEffect)
+     - Custom React hook: useAuth
+     - TypeScript Props interface
+     - Frontend score: +21
+
+  RESULTADO FINAL:
+  - Backend score: 23
+  - Frontend score: 26
+  - Tipo: FULLSTACK (ambos scores > 15)
+  - Confianza: VERY HIGH (95%)
+  - Evidencia:
+    * Backend: FastAPI imports, Use Case pattern
+    * Frontend: React hooks, TypeScript
+```
+
+### PASO 3.6: Decisión de Estrategia
+
+En modo autónomo, decidir automáticamente qué estrategia usar:
+
+```javascript
+// En workflow:issue-complete con --autonomous
+if (session.autoClassifyStrategy === 'analyze-files') {
+  // SIEMPRE usar análisis profundo
+  const analysis = await issueAnalyzer.deepAnalysis(issueNumber)
+
+  if (analysis.confidence >= 70) {
+    // Alta confianza → proceder automáticamente
+    implementer = analysis.recommended_implementer
+  } else {
+    // Baja confianza incluso con análisis profundo
+    // Podría ser un issue muy vago o sin archivos
+    // Estrategia fallback: asumir fullstack
+    console.log(`⚠️ Confianza baja (${analysis.confidence}%), asumiendo fullstack`)
+    implementer = 'fullstack-implementer'
+  }
+} else if (session.autoClassifyStrategy === 'fullstack') {
+  // Estrategia simple: asumir fullstack siempre
+  implementer = 'fullstack-implementer'
+} else if (session.autoClassifyStrategy === 'skip') {
+  // Saltar issues ambiguos
+  if (basicScore.confidence < 70) {
+    console.log(`⚠️ Issue ambiguo, saltando...`)
+    continue
+  }
+} else {
+  // Default: preguntar al usuario
+  implementer = await askUser()
+}
 ```
 
 ### PASO 4: Clasificación
