@@ -767,6 +767,10 @@ async function dockerScaffolder(projectRoot, config, templatesRoot) {
   const backendDir = path.join(projectRoot, config.stack.backend.dirName);
   const frontendDir = path.join(projectRoot, config.stack.frontend.dirName);
 
+  // Asegurar que existan los directorios backend y frontend
+  await fs.ensureDir(backendDir);
+  await fs.ensureDir(frontendDir);
+
   // 1. Crear Dockerfiles
   await processTemplateFile(
     path.join(dockerTemplatesDir, 'backend.Dockerfile.dev.tmpl'),
@@ -873,6 +877,9 @@ async function backendCoreScaffolder(projectRoot, config, templatesRoot) {
   const backendCoreTemplatesDir = path.join(templatesRoot, 'backend', 'core');
   const backendDir = path.join(projectRoot, config.stack.backend.dirName);
   const coreDir = path.join(backendDir, 'core');
+
+  // Asegurar que exista el directorio backend
+  await fs.ensureDir(backendDir);
 
   // 1. Crear estructura de directorios
   await fs.ensureDir(path.join(coreDir, 'database'));
@@ -987,6 +994,10 @@ async function domainScaffolder(projectRoot, config, domainName, templatesRoot) 
   const frontendTemplatesDir = path.join(templatesRoot, 'frontend');
   const backendDir = path.join(projectRoot, config.stack.backend.dirName);
   const frontendDir = path.join(projectRoot, config.stack.frontend.dirName);
+
+  // Asegurar que existan los directorios backend y frontend
+  await fs.ensureDir(backendDir);
+  await fs.ensureDir(path.join(frontendDir, 'src'));
 
   // === BACKEND ===
 
@@ -1134,6 +1145,9 @@ async function domainScaffolder(projectRoot, config, domainName, templatesRoot) 
 async function mainAppScaffolder(projectRoot, config) {
   const templateVars = generateTemplateVariables(config);
   const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+
+  // Asegurar que exista el directorio backend
+  await fs.ensureDir(backendDir);
 
   // Crear main.py básico si no existe
   const mainPath = path.join(backendDir, 'main.py');
