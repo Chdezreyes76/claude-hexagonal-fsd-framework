@@ -144,18 +144,18 @@ Según el tipo de base de datos, activar estos condicionales:
 ```
 project/
 ├── backend/
-│   ├── Dockerfile.dev              ← Desde templates/docker/backend.Dockerfile.dev.tmpl
-│   └── .dockerignore               ← Desde templates/docker/backend.dockerignore.tmpl
+│   ├── Dockerfile.dev              ← Desde .claude/lib/templates/docker/backend.Dockerfile.dev.tmpl
+│   └── .dockerignore               ← Desde .claude/lib/templates/docker/backend.dockerignore.tmpl
 ├── frontend/
-│   ├── Dockerfile.dev              ← Desde templates/docker/frontend.Dockerfile.dev.tmpl
-│   └── .dockerignore               ← Desde templates/docker/frontend.dockerignore.tmpl
-├── docker-compose.dev.yml          ← Desde templates/docker/docker-compose.dev.yml.tmpl
-├── DOCKER-README.md                ← Desde templates/docker/DOCKER-README.md.tmpl
+│   ├── Dockerfile.dev              ← Desde .claude/lib/templates/docker/frontend.Dockerfile.dev.tmpl
+│   └── .dockerignore               ← Desde .claude/lib/templates/docker/frontend.dockerignore.tmpl
+├── docker-compose.dev.yml          ← Desde .claude/lib/templates/docker/docker-compose.dev.yml.tmpl
+├── DOCKER-README.md                ← Desde .claude/lib/templates/docker/DOCKER-README.md.tmpl
 ├── scripts/
-│   ├── docker-start.sh             ← Desde templates/docker/scripts/docker-start.sh.tmpl
-│   ├── docker-start.bat            ← Desde templates/docker/scripts/docker-start.bat.tmpl
-│   ├── docker-stop.sh              ← Desde templates/docker/scripts/docker-stop.sh.tmpl
-│   └── docker-stop.bat             ← Desde templates/docker/scripts/docker-stop.bat.tmpl
+│   ├── docker-start.sh             ← Desde .claude/lib/templates/docker/scripts/docker-start.sh.tmpl
+│   ├── docker-start.bat            ← Desde .claude/lib/templates/docker/scripts/docker-start.bat.tmpl
+│   ├── docker-stop.sh              ← Desde .claude/lib/templates/docker/scripts/docker-stop.sh.tmpl
+│   └── docker-stop.bat             ← Desde .claude/lib/templates/docker/scripts/docker-stop.bat.tmpl
 └── .gitignore                      ← Actualizar (no sobrescribir)
 ```
 

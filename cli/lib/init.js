@@ -175,8 +175,8 @@ async function initWizard(targetProjectPath, options = {}) {
           return `${name}_dev`;
         },
         validate: (input) => {
-          if (!/^[a-z_]+$/.test(input)) {
-            return 'Database name must be lowercase with underscores only (snake_case)';
+          if (!/^[a-z0-9_]+$/.test(input)) {
+            return 'Database name must be lowercase with underscores only (snake_case), numbers allowed';
           }
           return true;
         }
@@ -334,6 +334,43 @@ async function setupClaudeDirectory(projectRoot, frameworkRoot, config, options 
     results.errors.forEach(err => {
       console.log(chalk.yellow(`    - ${err.file}: ${err.error}`));
     });
+  }
+
+  // 2.5. Copiar templates a .claude/lib/templates
+  spinner = ora('Copying code templates...').start();
+  const templatesSourceDir = path.join(frameworkRoot, 'templates');
+  const templatesTargetDir = path.join(claudeDir, 'lib', 'templates');
+
+  // Verificar que existe el directorio de templates
+  if (await fs.pathExists(templatesSourceDir)) {
+    // Crear directorio lib si no existe
+    await fs.ensureDir(path.join(claudeDir, 'lib'));
+
+    // Copiar templates SIN procesar (los comandos los procesarán después)
+    await fs.copy(templatesSourceDir, templatesTargetDir, {
+      overwrite: true,
+      errorOnExist: false
+    });
+
+    // Contar archivos copiados
+    const countFiles = async (dir) => {
+      let count = 0;
+      const items = await fs.readdir(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          count += await countFiles(fullPath);
+        } else {
+          count++;
+        }
+      }
+      return count;
+    };
+
+    const fileCount = await countFiles(templatesTargetDir);
+    spinner.succeed(`Code templates copied (${fileCount} files)`);
+  } else {
+    spinner.warn('Templates directory not found, skipping...');
   }
 
   // 3. Generar claude.config.json

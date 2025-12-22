@@ -32,7 +32,7 @@ Genera la infraestructura completa de `core/` con:
    ```
 
 4. **Procesar templates y generar archivos**:
-   - Leer templates desde `templates/backend/core/`
+   - Leer templates desde `.claude/lib/templates/backend/core/`
    - Reemplazar variables Mustache con valores del config
    - Escribir archivos en `backend/core/`
 
@@ -50,7 +50,7 @@ Genera la infraestructura completa de `core/` con:
 
 5. **Actualizar requirements.txt**:
    - Leer `backend/requirements.txt` (si existe)
-   - Agregar dependencias desde `templates/backend/core/requirements-core.txt.tmpl`
+   - Agregar dependencias desde `.claude/lib/templates/backend/core/requirements-core.txt.tmpl`
    - No duplicar dependencias existentes
    - Si no existe requirements.txt, crearlo
 

@@ -99,17 +99,17 @@ function validateBusinessRules(config) {
   // Validar que el nombre de base de datos sea snake_case
   if (config.stack?.database?.name) {
     const dbName = config.stack.database.name;
-    if (!/^[a-z_]+$/.test(dbName)) {
+    if (!/^[a-z0-9_]+$/.test(dbName)) {
       errors.push({
         path: '/stack/database/name',
-        message: 'Database name must be in snake_case (lowercase letters and underscores only)',
+        message: 'Database name must be in snake_case (lowercase letters, numbers, and underscores only)',
         params: { name: dbName }
       });
     }
   }
 
   // Validar que nameSnake y nameKebab sean correctos
-  if (config.project?.nameSnake && !/^[a-z_]+$/.test(config.project.nameSnake)) {
+  if (config.project?.nameSnake && !/^[a-z0-9_]+$/.test(config.project.nameSnake)) {
     errors.push({
       path: '/project/nameSnake',
       message: 'Project nameSnake must be in snake_case format',
@@ -117,7 +117,7 @@ function validateBusinessRules(config) {
     });
   }
 
-  if (config.project?.nameKebab && !/^[a-z-]+$/.test(config.project.nameKebab)) {
+  if (config.project?.nameKebab && !/^[a-z0-9-]+$/.test(config.project.nameKebab)) {
     errors.push({
       path: '/project/nameKebab',
       message: 'Project nameKebab must be in kebab-case format',
