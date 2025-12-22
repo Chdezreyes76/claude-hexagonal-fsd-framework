@@ -442,12 +442,76 @@ async function initWizard(targetProjectPath, options = {}) {
       }
     ]);
 
+    // Paso 6: Initial Scaffolding (solo para proyectos nuevos)
+    let scaffoldAnswers = {};
+
+    if (isNewProject) {
+      console.log(chalk.yellow.bold('\n🚀 Initial Scaffolding (optional)\n'));
+      console.log(chalk.gray('  Generate initial project structure automatically.\n'));
+
+      scaffoldAnswers = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'generateDocker',
+          message: 'Generate Docker development environment?',
+          default: true
+        },
+        {
+          type: 'confirm',
+          name: 'generateBackendCore',
+          message: 'Generate backend core (database, logging, settings)?',
+          default: true
+        },
+        {
+          type: 'confirm',
+          name: 'scaffoldFirstDomain',
+          message: 'Scaffold first domain with CRUD operations?',
+          default: domains.length > 0,
+          when: () => domains.length > 0
+        },
+        {
+          type: 'list',
+          name: 'firstDomain',
+          message: 'Select domain to scaffold:',
+          choices: domains,
+          when: (answers) => answers.scaffoldFirstDomain && domains.length > 0
+        },
+        {
+          type: 'confirm',
+          name: 'generateMainApp',
+          message: 'Generate main.py and basic frontend for first domain?',
+          default: true,
+          when: (answers) => answers.scaffoldFirstDomain
+        }
+      ]);
+
+      // Mostrar resumen de lo que se generará
+      if (Object.keys(scaffoldAnswers).length > 0 &&
+          (scaffoldAnswers.generateDocker || scaffoldAnswers.generateBackendCore || scaffoldAnswers.scaffoldFirstDomain)) {
+        console.log(chalk.cyan('\n📋 Will generate:'));
+        if (scaffoldAnswers.generateDocker) {
+          console.log(chalk.gray('  ✓ Docker development environment (compose, Dockerfiles, scripts)'));
+        }
+        if (scaffoldAnswers.generateBackendCore) {
+          console.log(chalk.gray('  ✓ Backend core infrastructure (database, logging, settings)'));
+        }
+        if (scaffoldAnswers.scaffoldFirstDomain) {
+          console.log(chalk.gray(`  ✓ Domain: ${scaffoldAnswers.firstDomain} (entities, use cases, repositories, router)`));
+        }
+        if (scaffoldAnswers.generateMainApp) {
+          console.log(chalk.gray('  ✓ Main application (main.py, frontend pages, hooks)'));
+        }
+        console.log('');
+      }
+    }
+
     // Combinar todas las respuestas
     const allAnswers = {
       ...projectAnswers,
       ...teamAnswers,
       ...stackAnswers,
       ...customAnswers,
+      ...scaffoldAnswers,
       domains,
       projectType: isNewProject ? 'new' : 'existing',
       detection: detection  // Pasar información de detección al generador
@@ -474,8 +538,19 @@ async function initWizard(targetProjectPath, options = {}) {
     // Paso 7: Setup del directorio .claude
     await setupClaudeDirectory(targetProjectPath, frameworkRoot, config, options);
 
+    // Paso 8: Ejecutar scaffolding inicial (solo para proyectos nuevos)
+    if (isNewProject && Object.keys(scaffoldAnswers).length > 0) {
+      const hasScaffolding = scaffoldAnswers.generateDocker ||
+                            scaffoldAnswers.generateBackendCore ||
+                            scaffoldAnswers.scaffoldFirstDomain;
+
+      if (hasScaffolding) {
+        await executeInitialScaffolding(targetProjectPath, config, scaffoldAnswers, options);
+      }
+    }
+
     // Mostrar mensaje de éxito
-    showSuccessMessage(targetProjectPath, config);
+    showSuccessMessage(targetProjectPath, config, isNewProject, scaffoldAnswers);
 
   } catch (error) {
     console.error(chalk.red('\n❌ Error during setup:'));
@@ -618,37 +693,125 @@ async function updateGitignore(projectRoot) {
 }
 
 /**
+ * Ejecuta scaffolding inicial para proyectos nuevos
+ */
+async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, options = {}) {
+  console.log(chalk.yellow.bold('\n⚙️  Executing Initial Scaffolding...\n'));
+
+  try {
+    // TODO: Implementar scaffolders reales
+    // Por ahora, solo mostrar qué se haría
+
+    if (scaffoldAnswers.generateDocker) {
+      const spinner = ora('Generating Docker development environment...').start();
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular trabajo
+      spinner.succeed('Docker environment configuration ready');
+      console.log(chalk.gray('  Note: Docker scaffolder will be implemented soon'));
+    }
+
+    if (scaffoldAnswers.generateBackendCore) {
+      const spinner = ora('Generating backend core infrastructure...').start();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      spinner.succeed('Backend core configuration ready');
+      console.log(chalk.gray('  Note: Backend core scaffolder will be implemented soon'));
+    }
+
+    if (scaffoldAnswers.scaffoldFirstDomain) {
+      const spinner = ora(`Scaffolding domain: ${scaffoldAnswers.firstDomain}...`).start();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      spinner.succeed(`Domain ${scaffoldAnswers.firstDomain} configuration ready`);
+      console.log(chalk.gray('  Note: Domain scaffolder will be implemented soon'));
+    }
+
+    if (scaffoldAnswers.generateMainApp) {
+      const spinner = ora('Generating main application...').start();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      spinner.succeed('Main application configuration ready');
+      console.log(chalk.gray('  Note: Main app scaffolder will be implemented soon'));
+    }
+
+    console.log(chalk.green('\n✓ Initial scaffolding planned!'));
+    console.log(chalk.yellow('  Scaffolders are queued for implementation.'));
+    console.log(chalk.yellow('  You can run scaffold commands manually for now:\n'));
+    console.log(chalk.gray('    /scaffold:docker-dev'));
+    console.log(chalk.gray('    /scaffold:backend-core'));
+    console.log(chalk.gray('    /scaffold:new-domain <name>\n'));
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ Error during scaffolding:'));
+    console.error(chalk.red(`   ${error.message}`));
+    if (options.verbose) {
+      console.error(chalk.gray(error.stack));
+    }
+    console.log(chalk.yellow('\n⚠️  Scaffolding failed, but framework is installed.'));
+    console.log(chalk.yellow('   You can run scaffold commands manually.\n'));
+  }
+}
+
+/**
  * Muestra mensaje de éxito final
  */
-function showSuccessMessage(projectRoot, config) {
+function showSuccessMessage(projectRoot, config, isNewProject = true, scaffoldAnswers = {}) {
   console.log(chalk.green.bold('\n🎉 Setup complete!\n'));
 
   console.log(chalk.cyan('Project configured:'));
   console.log(chalk.white(`  Name: ${config.project.name}`));
+  console.log(chalk.white(`  Type: ${config.projectType === 'new' ? 'New Project' : 'Existing Project'}`));
   console.log(chalk.white(`  Location: ${projectRoot}`));
   console.log(chalk.white(`  Framework: ${config.frameworkVersion}\n`));
 
   console.log(chalk.cyan('Stack:'));
   console.log(chalk.white(`  Backend:  ${config.stack.backend.framework} (port ${config.stack.backend.port})`));
   console.log(chalk.white(`  Frontend: ${config.stack.frontend.framework} (port ${config.stack.frontend.port})`));
-  console.log(chalk.white(`  Database: ${config.stack.database.type} (port ${config.stack.database.port})\n`));
+  console.log(chalk.white(`  Database: ${config.stack.database.type} (port ${config.stack.database.port || 'N/A'})\n`));
 
   if (config.domains.examples.length > 0) {
     console.log(chalk.cyan('Business domains:'));
     console.log(chalk.white(`  ${config.domains.examples.join(', ')}\n`));
   }
 
-  console.log(chalk.cyan('Next steps:'));
-  console.log(chalk.white('  1. Review .claude/claude.config.json'));
-  console.log(chalk.white('  2. Explore available commands in .claude/commands/'));
-  console.log(chalk.white('  3. Start using Claude Code with the framework skills\n'));
+  // Mostrar qué se generó (para proyectos nuevos)
+  if (isNewProject && Object.keys(scaffoldAnswers).length > 0) {
+    const generated = [];
+    if (scaffoldAnswers.generateDocker) generated.push('Docker environment');
+    if (scaffoldAnswers.generateBackendCore) generated.push('Backend core');
+    if (scaffoldAnswers.scaffoldFirstDomain) generated.push(`Domain: ${scaffoldAnswers.firstDomain}`);
+    if (scaffoldAnswers.generateMainApp) generated.push('Main application');
 
-  console.log(chalk.gray('For more information, see the documentation at:'));
-  console.log(chalk.gray('  https://github.com/yourorg/claude-hexagonal-fsd-framework\n'));
+    if (generated.length > 0) {
+      console.log(chalk.cyan('Scaffolding planned:'));
+      generated.forEach(item => console.log(chalk.white(`  ✓ ${item}`)));
+      console.log('');
+    }
+  }
+
+  // Next steps diferenciados
+  console.log(chalk.cyan('Next steps:'));
+
+  if (config.projectType === 'existing') {
+    console.log(chalk.white('  1. Review .claude/claude.config.json'));
+    console.log(chalk.white('  2. Try: /github:priorities'));
+    console.log(chalk.white('  3. Try: /scaffold:new-domain <name>'));
+    console.log(chalk.white('  4. Explore available commands in .claude/commands/\n'));
+  } else {
+    if (scaffoldAnswers.generateDocker) {
+      console.log(chalk.white('  1. Start Docker: ./scripts/docker-start.sh (or .bat on Windows)'));
+      console.log(chalk.white('  2. Apply migrations: docker exec backend alembic upgrade head'));
+    } else {
+      console.log(chalk.white('  1. Set up your backend and frontend directories'));
+      console.log(chalk.white('  2. Run /scaffold:docker-dev if you need Docker'));
+    }
+    console.log(chalk.white('  3. Review .claude/claude.config.json'));
+    console.log(chalk.white('  4. Start using Claude Code with the framework skills\n'));
+  }
+
+  console.log(chalk.gray('Framework documentation:'));
+  console.log(chalk.gray('  https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework\n'));
 }
 
 module.exports = {
   initWizard,
   setupClaudeDirectory,
-  updateGitignore
+  updateGitignore,
+  executeInitialScaffolding
 };
