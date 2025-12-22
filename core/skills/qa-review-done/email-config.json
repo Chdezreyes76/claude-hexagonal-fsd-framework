@@ -18,7 +18,7 @@
     "sendgrid": {
       "enabled": false,
       "api_key_env": "SENDGRID_API_KEY",
-      "from": "qa-bot@gextiona.com"
+      "from": "qa-bot@{{projectNameKebab}}.com"
     },
     "mailgun": {
       "enabled": false,

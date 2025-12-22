@@ -88,6 +88,7 @@ claude-framework init
 - `/scaffold:new-domain` - Create new domain
 - `/scaffold:new-endpoint` - Add endpoint to domain
 - `/quality:review` - Automated code review
+- `/qa:review-done` - Automated QA review for issues in Done
 - `/db:migrate` - Manage database migrations
 - `/workflow:issue-complete` - Full issue workflow
 
