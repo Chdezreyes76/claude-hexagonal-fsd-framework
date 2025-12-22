@@ -942,10 +942,17 @@ async function backendCoreScaffolder(projectRoot, config, templatesRoot) {
     templateVars
   );
 
-  // 5. Generar .env.example
+  // 5. Generar .env.example (en backend y en raíz)
   await processTemplateFile(
     path.join(backendCoreTemplatesDir, 'env.example.tmpl'),
     path.join(backendDir, '.env.example'),
+    templateVars
+  );
+
+  // También crear .env.example en la raíz para docker-compose
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'env.example.tmpl'),
+    path.join(projectRoot, '.env.example'),
     templateVars
   );
 
