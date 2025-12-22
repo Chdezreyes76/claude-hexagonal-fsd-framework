@@ -592,6 +592,83 @@ Esto automáticamente:
 
 **Output esperado**: PR mergeado, rama limpiada, en master
 
+### Manejo de Conflictos (Nuevo - Fase 5):
+
+El comando `github:merge` ahora intenta resolver conflictos automáticamente en modo autónomo.
+
+**Estrategias de auto-resolución**:
+1. **Rebase automático** (preferido)
+2. **Merge con estrategia "ours"** (conservador)
+3. **Resolución selectiva** (solo archivos de configuración)
+
+**Exit codes**:
+- `0`: Merge exitoso
+- `1`: Error fatal
+- `2`: Conflictos no resueltos (skip issue)
+
+```javascript
+// En modo autónomo con --auto-resolve-conflicts
+const mergeExitCode = await Skill("github:merge")
+
+if (mergeExitCode === 2) {
+  // Conflictos no pudieron resolverse automáticamente
+  console.log(`\n❌ Conflictos de merge no pudieron resolverse automáticamente`)
+
+  if (session.autonomousMode && session.skipOnFailure) {
+    console.log(`\n⚠️ Saltando issue #${issue.number}`)
+
+    session.issuesSaltados.push({
+      number: issue.number,
+      title: issue.title,
+      reason: 'Conflictos de merge no resueltos',
+      prNumber: prNumber,
+      conflictStrategy: 'Requiere resolución manual'
+    })
+    session.issuesSkipped++
+
+    // Continuar con siguiente issue
+    continue
+  } else {
+    // Modo no autónomo: preguntar al usuario
+    console.log(`\n⚠️ El PR tiene conflictos que no se pudieron resolver automáticamente`)
+    console.log(`   Debes resolverlos manualmente en GitHub o localmente`)
+    return
+  }
+} else if (mergeExitCode === 1) {
+  // Error fatal
+  console.log(`\n❌ Error al mergear PR`)
+
+  if (session.autonomousMode && session.skipOnFailure) {
+    console.log(`\n⚠️ Saltando issue #${issue.number}`)
+
+    session.issuesSaltados.push({
+      number: issue.number,
+      title: issue.title,
+      reason: 'Error fatal al mergear',
+      prNumber: prNumber
+    })
+    session.issuesSkipped++
+
+    continue
+  } else {
+    return
+  }
+}
+
+// Exit code 0: Merge exitoso
+console.log(`\n✅ PR #${prNumber} mergeado exitosamente`)
+```
+
+**Tracking en sesión**:
+- `issuesSaltados`: Array con issues que no pudieron mergearse
+- Cada item incluye: `number`, `title`, `reason`, `prNumber`, `conflictStrategy`
+
+**Beneficios**:
+- ✅ Intenta resolver conflictos comunes (config files, rebase limpio)
+- ✅ No bloquea el workflow en conflictos triviales
+- ✅ Skip seguro cuando no puede resolver
+- ✅ Tracking completo de issues saltados por conflictos
+
 ---
 
 ## PASO 6: Siguiente Issue (Loop)
@@ -1093,6 +1170,224 @@ Issues menores detectados:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+### Ejemplo 6: Modo Autónomo con Auto-Resolución de Conflictos (Nuevo - Fase 5)
+
+```
+Usuario: /workflow:issue-complete --loop --max=4 --autonomous --auto-resolve-conflicts
+
+[Session Iniciada: modo autónomo con auto-resolución de conflictos]
+
+[ISSUE 1/4]
+→ Auto-selecciona #160 [ALTA] Update user model
+→ Implementa cambios...
+→ PR #250 creado
+→ Code Review: APROBADO ✅
+→ Merge exitoso ✅
+→ "✅ Issue #160 completado (1/4)"
+
+[ISSUE 2/4]
+→ Auto-selecciona #161 [MEDIA] Add pagination to users list
+→ Implementa cambios...
+→ PR #251 creado
+→ Code Review: APROBADO ✅
+
+→ Ejecutando github:merge...
+
+⚠️ Conflictos detectados en PR #251
+   Estado mergeable: CONFLICTING
+
+🔧 Intentando resolución automática...
+
+📋 Estrategia 1: Rebase automático
+   → git rebase origin/master
+   → Rebase completado sin conflictos ✅
+   → git push --force-with-lease origin fix/161-add-pagination
+   → Esperando a que GitHub actualice PR...
+
+✅ Rebase exitoso sin conflictos
+✅ PR ahora es mergeable después de rebase
+
+🤖 Agregando comentario al PR #251:
+   "🤖 Conflictos resueltos automáticamente usando estrategia: rebase
+
+   Detalles:
+   - Estrategia: rebase automático
+   - Archivos afectados: 2
+   - Timestamp: 2025-12-22 14:30:45
+
+   Generated with Claude Code"
+
+→ gh pr merge 251 --merge --delete-branch
+✅ PR #251 mergeado exitosamente
+→ "✅ Issue #161 completado (2/4) - Conflictos resueltos automáticamente"
+
+[ISSUE 3/4]
+→ Auto-selecciona #162 [ALTA] Update dependencies
+→ Implementa cambios...
+→ PR #252 creado
+→ Code Review: APROBADO ✅
+
+→ Ejecutando github:merge...
+
+⚠️ Conflictos detectados en PR #252
+
+🔧 Intentando resolución automática...
+
+📋 Estrategia 1: Rebase automático
+   → git rebase origin/master
+   ❌ Rebase falló (conflictos en código)
+   → git rebase --abort
+
+⚠️ Rebase falló, intentando siguiente estrategia...
+
+📋 Estrategia 2: Merge con estrategia 'ours'
+   → git merge origin/master -X ours -m "chore: auto-resolve conflicts using ours strategy"
+   ❌ Merge falló (conflictos complejos)
+   → git merge --abort
+
+⚠️ Merge con 'ours' falló, intentando siguiente estrategia...
+
+📋 Estrategia 3: Análisis selectivo de conflictos
+   → git merge origin/master --no-commit --no-ff
+
+   Archivos con conflictos:
+   - package.json
+   - package-lock.json
+   - backend/requirements.txt
+
+🔧 Solo conflictos en archivos de configuración, usando 'theirs'
+   ✓ Resuelto package.json (usando versión de master)
+   ✓ Resuelto package-lock.json (usando versión de master)
+   ✓ Resuelto requirements.txt (usando versión de master)
+
+   → git commit -m "chore: auto-resolve dependency conflicts using theirs"
+   → git push origin fix/162-update-dependencies
+
+✅ Conflictos resueltos, PR ahora es mergeable
+
+🤖 Agregando comentario al PR #252:
+   "🤖 Conflictos resueltos automáticamente usando estrategia: selective (theirs)
+
+   Detalles:
+   - Estrategia: Resolución selectiva de archivos de configuración
+   - Archivos resueltos: package.json, package-lock.json, requirements.txt
+   - Método: Usar versión de master para dependencias
+   - Timestamp: 2025-12-22 14:35:12
+
+   Generated with Claude Code"
+
+→ gh pr merge 252 --merge --delete-branch
+✅ PR #252 mergeado exitosamente
+→ "✅ Issue #162 completado (3/4) - Conflictos de dependencias resueltos"
+
+[ISSUE 4/4]
+→ Auto-selecciona #163 [ALTA] Refactor user service
+→ Implementa cambios...
+→ PR #253 creado
+→ Code Review: APROBADO ✅
+
+→ Ejecutando github:merge...
+
+⚠️ Conflictos detectados en PR #253
+
+🔧 Intentando resolución automática...
+
+📋 Estrategia 1: Rebase automático
+   → git rebase origin/master
+   ❌ Rebase falló
+   → git rebase --abort
+
+📋 Estrategia 2: Merge con estrategia 'ours'
+   ❌ Merge falló
+
+📋 Estrategia 3: Análisis selectivo
+   Archivos con conflictos:
+   - backend/application/use_cases/usuario/crear_usuario_use_case.py
+   - backend/domain/entities/usuario.py
+   - frontend/src/features/usuarios/services/usuarioService.ts
+
+⚠️ Conflictos en código fuente detectados
+   No es seguro resolver automáticamente
+
+❌ No se pudieron resolver conflictos automáticamente
+
+Archivos con conflictos:
+- backend/application/use_cases/usuario/crear_usuario_use_case.py
+- backend/domain/entities/usuario.py
+- frontend/src/features/usuarios/services/usuarioService.ts
+
+Opciones:
+  1. Resolver manualmente en la branch fix/163-refactor-user-service
+  2. Saltar este issue (en modo autónomo)
+
+⚠️ Modo autónomo: Saltando issue por conflictos no resueltos
+
+→ "⚠️ Issue #163 saltado (4/4) - Conflictos en código fuente requieren resolución manual"
+
+[Mostrar Resumen Final]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SESIÓN COMPLETADA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 ESTADÍSTICAS FINALES:
+  Issues procesados:   4/4 (100%)
+  ├─ ✅ Completados:   3 (75%)
+  ├─ ⚠️ Saltados:      1 (25%)
+  └─ ❌ Abortados:     0 (0%)
+
+  PRs creados:         4
+  PRs mergeados:       3
+
+  Conflictos detectados: 3
+  ├─ ✅ Resueltos automáticamente: 2 (67%)
+  └─ ⚠️ Requieren atención manual:  1 (33%)
+
+🔧 AUTO-RESOLUCIÓN DE CONFLICTOS:
+  Estrategia exitosa:
+  ├─ Rebase automático:         1 issue (#161)
+  ├─ Resolución selectiva:      1 issue (#162)
+  └─ No resoluble:              1 issue (#163)
+
+📋 ISSUES COMPLETADOS:
+  1. ✅ #160 [ALTA] Update user model → PR #250 ✅
+  2. ✅ #161 [MEDIA] Add pagination → PR #251 ✅ (conflictos: rebase)
+  3. ✅ #162 [ALTA] Update dependencies → PR #252 ✅ (conflictos: selective)
+
+⚠️ ISSUES SALTADOS (requieren atención manual):
+  1. #163 [ALTA] Refactor user service
+     Razón: Conflictos de merge no resueltos
+     PR: #253 (abierto, requiere merge manual)
+     Archivos en conflicto:
+     - backend/application/use_cases/usuario/crear_usuario_use_case.py
+     - backend/domain/entities/usuario.py
+     - frontend/src/features/usuarios/services/usuarioService.ts
+
+     Acción: Resolver conflictos manualmente y ejecutar:
+       git checkout fix/163-refactor-user-service
+       # Resolver conflictos...
+       git add .
+       git commit -m "chore: resolve merge conflicts"
+       git push
+       /github:merge
+
+📈 EFECTIVIDAD AUTO-RESOLUCIÓN:
+  - 67% de conflictos resueltos automáticamente
+  - 100% de conflictos en archivos de configuración resueltos
+  - 0% de conflictos en código fuente resueltos (requiere revisión manual)
+  - Ahorro de tiempo: ~10 minutos
+
+🎯 PRÓXIMO ISSUE RECOMENDADO:
+  #164 [MEDIA] Add user filters
+
+💡 RECOMENDACIÓN:
+  Issue #163 tiene conflictos en 3 archivos de código. Considera:
+  1. Revisar cambios en master que causaron conflictos
+  2. Resolver manualmente preservando lógica de negocio
+  3. Re-ejecutar code review después de resolver
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 ---
 
 ## Notas Importantes
@@ -1109,6 +1404,8 @@ Issues menores detectados:
 10. **Límite de issues** - Usa `--max=N` para limitar el número de issues en modo bucle
 11. **Filtro de proyecto** - Usa `--project=N` para trabajar solo en issues del proyecto de GitHub #N
 12. **Combinar filtros** - Se pueden combinar `--loop`, `--max=N` y `--project=N` simultáneamente
+13. **Auto-corrección de code reviews (Fase 4)** - Usa `--auto-fix-reviews=N` para permitir hasta N ciclos de corrección automática cuando el review es rechazado
+14. **Auto-resolución de conflictos (Fase 5)** - Usa `--auto-resolve-conflicts` para intentar resolver conflictos de merge automáticamente con estrategias progresivas (rebase, merge ours, selectiva)
 
 ---
 
