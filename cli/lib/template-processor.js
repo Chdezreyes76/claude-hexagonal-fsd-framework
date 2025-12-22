@@ -69,9 +69,11 @@ async function processTemplateDirectory(sourceDir, targetDir, variables, options
         const shouldSkip = skipExtensions.includes(ext);
 
         if (shouldSkip) {
-          // Copiar sin procesar
-          await fs.copy(sourcePath, targetPath);
-          results.copied.push(targetPath);
+          // Copiar sin procesar (solo si source y target son diferentes)
+          if (sourcePath !== targetPath) {
+            await fs.copy(sourcePath, targetPath);
+            results.copied.push(targetPath);
+          }
         } else if (shouldProcess) {
           // Procesar con Mustache
           try {
@@ -84,9 +86,11 @@ async function processTemplateDirectory(sourceDir, targetDir, variables, options
             });
           }
         } else {
-          // Copiar archivos binarios u otros sin procesar
-          await fs.copy(sourcePath, targetPath);
-          results.copied.push(targetPath);
+          // Copiar archivos binarios u otros sin procesar (solo si source y target son diferentes)
+          if (sourcePath !== targetPath) {
+            await fs.copy(sourcePath, targetPath);
+            results.copied.push(targetPath);
+          }
         }
       }
     }
