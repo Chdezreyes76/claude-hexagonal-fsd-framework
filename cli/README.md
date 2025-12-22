@@ -48,6 +48,22 @@ node index.js init /path/to/your/project
 node index.js init --verbose
 ```
 
+### Test Project Detection (New)
+
+Before running the wizard, you can test the project detector to see what will be detected:
+
+```bash
+node test-detector.js /path/to/your/project
+```
+
+This will show:
+- Backend structure (Python, FastAPI, hexagonal architecture)
+- Frontend structure (React, TypeScript, FSD)
+- Database configuration (MySQL, PostgreSQL, etc.)
+- Docker setup
+- Git repository status
+- Existing business domains
+
 ## Wizard Steps
 
 The interactive wizard will guide you through:
