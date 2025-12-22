@@ -1147,6 +1147,122 @@ async function domainScaffolder(projectRoot, config, domainName, templatesRoot) 
 }
 
 /**
+ * Scaffolder: Frontend Initial Structure
+ */
+async function frontendInitialScaffolder(projectRoot, config, templatesRoot) {
+  const templateVars = generateTemplateVariables(config);
+  const frontendInitTemplatesDir = path.join(templatesRoot, 'frontend', 'init');
+  const frontendDir = path.join(projectRoot, config.stack.frontend.dirName);
+
+  // Asegurar que exista el directorio frontend
+  await fs.ensureDir(frontendDir);
+
+  // 1. Generar package.json
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'package.json.tmpl'),
+    path.join(frontendDir, 'package.json'),
+    templateVars
+  );
+
+  // 2. Generar vite.config.ts
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'vite.config.ts.tmpl'),
+    path.join(frontendDir, 'vite.config.ts'),
+    templateVars
+  );
+
+  // 3. Generar tsconfig.json
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'tsconfig.json.tmpl'),
+    path.join(frontendDir, 'tsconfig.json'),
+    templateVars
+  );
+
+  // 4. Generar index.html
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'index.html.tmpl'),
+    path.join(frontendDir, 'index.html'),
+    templateVars
+  );
+
+  // 5. Crear directorio src y generar archivos
+  const srcDir = path.join(frontendDir, 'src');
+  await fs.ensureDir(srcDir);
+
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'src', 'main.tsx.tmpl'),
+    path.join(srcDir, 'main.tsx'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'src', 'App.tsx.tmpl'),
+    path.join(srcDir, 'App.tsx'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'src', 'App.css.tmpl'),
+    path.join(srcDir, 'App.css'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'src', 'index.css.tmpl'),
+    path.join(srcDir, 'index.css'),
+    templateVars
+  );
+
+  // 6. Crear directorio public y copiar assets
+  const publicDir = path.join(frontendDir, 'public');
+  await fs.ensureDir(publicDir);
+
+  await processTemplateFile(
+    path.join(frontendInitTemplatesDir, 'public', 'vite.svg.tmpl'),
+    path.join(publicDir, 'vite.svg'),
+    templateVars
+  );
+}
+
+/**
+ * Scaffolder: Backend Initial Structure
+ */
+async function backendInitialScaffolder(projectRoot, config) {
+  const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+
+  // Asegurar que exista el directorio backend
+  await fs.ensureDir(backendDir);
+
+  // Crear __init__.py en directorios principales
+  const directories = [
+    backendDir,
+    path.join(backendDir, 'domain'),
+    path.join(backendDir, 'domain', 'entities'),
+    path.join(backendDir, 'application'),
+    path.join(backendDir, 'application', 'dtos'),
+    path.join(backendDir, 'application', 'ports'),
+    path.join(backendDir, 'application', 'use_cases'),
+    path.join(backendDir, 'adapter'),
+    path.join(backendDir, 'adapter', 'inbound'),
+    path.join(backendDir, 'adapter', 'inbound', 'api'),
+    path.join(backendDir, 'adapter', 'inbound', 'api', 'routers'),
+    path.join(backendDir, 'adapter', 'inbound', 'api', 'dependencies'),
+    path.join(backendDir, 'adapter', 'outbound'),
+    path.join(backendDir, 'adapter', 'outbound', 'database'),
+    path.join(backendDir, 'adapter', 'outbound', 'database', 'models'),
+    path.join(backendDir, 'adapter', 'outbound', 'database', 'repositories')
+  ];
+
+  for (const dir of directories) {
+    await fs.ensureDir(dir);
+    const initPath = path.join(dir, '__init__.py');
+    if (!await fs.pathExists(initPath)) {
+      await fs.writeFile(initPath, '', 'utf-8');
+    }
+  }
+}
+
+/**
  * Scaffolder: Main Application
  */
 async function mainAppScaffolder(projectRoot, config) {
@@ -1240,6 +1356,8 @@ async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, o
   const templatesRoot = path.join(frameworkRoot, 'templates');
 
   const results = {
+    frontendInit: false,
+    backendInit: false,
     docker: false,
     backendCore: false,
     domain: false,
@@ -1247,6 +1365,27 @@ async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, o
   };
 
   try {
+    // 0. Generar estructura inicial de frontend y backend (SIEMPRE para proyectos nuevos)
+    const frontendSpinner = ora('Generating frontend initial structure...').start();
+    try {
+      await frontendInitialScaffolder(projectRoot, config, templatesRoot);
+      frontendSpinner.succeed('Frontend initial structure created');
+      results.frontendInit = true;
+    } catch (error) {
+      frontendSpinner.fail('Frontend initialization failed');
+      throw error;
+    }
+
+    const backendSpinner = ora('Generating backend initial structure...').start();
+    try {
+      await backendInitialScaffolder(projectRoot, config);
+      backendSpinner.succeed('Backend initial structure created');
+      results.backendInit = true;
+    } catch (error) {
+      backendSpinner.fail('Backend initialization failed');
+      throw error;
+    }
+
     // 1. Generar Docker environment
     if (scaffoldAnswers.generateDocker) {
       const spinner = ora('Generating Docker development environment...').start();
@@ -1345,6 +1484,8 @@ function showSuccessMessage(projectRoot, config, isNewProject = true, scaffoldAn
   if (isNewProject && scaffoldAnswers.results) {
     const results = scaffoldAnswers.results;
     const generated = [];
+    if (results.frontendInit) generated.push('Frontend initial structure (React + Vite + TypeScript)');
+    if (results.backendInit) generated.push('Backend initial structure (Hexagonal directories)');
     if (results.docker) generated.push('Docker environment');
     if (results.backendCore) generated.push('Backend core infrastructure');
     if (results.domain) generated.push(`Domain: ${results.domain}`);
