@@ -17,40 +17,73 @@
 Comprehensive development automation framework for building full-stack applications with:
 - **Backend**: FastAPI + Hexagonal Architecture (Ports & Adapters)
 - **Frontend**: React 19 + TypeScript + Feature-Sliced Design
-- **Automation**: 11 skills, 20+ commands, 3 agents, 18+ templates
+- **Automation**: 11 skills, 20+ commands, 3 agents, 30+ templates
+- **Docker**: Production-ready development environment with MySQL/SQLite support
 
 ## Features
 
+- 🚀 **Zero-Config Initialization**: Interactive wizard generates 100% functional projects
+- 🐳 **Docker Ready**: Complete dev environment with hot reload (MySQL/SQLite support)
 - 🤖 **Automated Agents**: Issue planning, implementation, code review
-- 📝 **Code Generation**: 18+ templates for backend & frontend
+- 📝 **Code Generation**: 30+ templates for backend, frontend, and infrastructure
 - ✅ **Quality Assurance**: Automated QA with detailed reports
 - 🔄 **GitHub Workflows**: Issue-to-deployment automation
 - 🎨 **Slash Commands**: 20+ productivity commands
 
 ## Quick Start
 
-### Installation
+### Create a New Project
 
 ```bash
-# Clone the framework
+# 1. Clone the framework
 git clone https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
-cd claude-hexagonal-fsd-framework/cli
+cd claude-hexagonal-fsd-framework
 
-# Install dependencies
-npm install
+# 2. Run the initialization wizard
+node cli/index.js init /path/to/new/project
 
-# Initialize in your project
-node index.js init /path/to/your/project
+# 3. Follow the interactive prompts:
+#    - Project details (name, description, version)
+#    - Stack configuration (ports, database type)
+#    - Optional scaffolding (Docker, backend core, domain examples)
+
+# 4. Start the development environment
+cd /path/to/new/project
+./scripts/docker-start.sh   # Linux/Mac
+# or
+.\scripts\docker-start.bat  # Windows
 ```
 
-### Interactive Setup
+### What You Get
 
-```bash
-# Run the wizard
-claude-framework init
+After initialization, your project includes:
 
-# Follow the prompts to configure your project
-```
+✅ **Backend (FastAPI + Hexagonal Architecture)**
+- Complete hexagonal structure (domain, application, adapter layers)
+- Database infrastructure (SQLAlchemy + Alembic migrations)
+- Logging system with context tracking
+- Settings management with environment variables
+- Health check endpoints
+
+✅ **Frontend (React 19 + TypeScript + FSD)**
+- Vite dev server with Hot Module Replacement
+- Feature-Sliced Design architecture
+- TypeScript strict mode configuration
+- React Query + Axios for API calls
+- ESLint configuration
+
+✅ **Docker Development Environment**
+- MySQL or SQLite database (your choice)
+- Backend with auto-reload on code changes
+- Frontend with Vite HMR
+- Health checks and dependency management
+- Ready-to-use scripts for all platforms
+
+**Access URLs after `docker-start`:**
+- Frontend: http://localhost:3000 (or your configured port)
+- Backend API: http://localhost:8000 (or your configured port)
+- API Docs: http://localhost:8000/docs
+- Database: localhost:3306 (MySQL) or embedded (SQLite)
 
 ## Architecture
 
@@ -80,17 +113,30 @@ claude-framework init
 - `issue-workflow`: Complete issue orchestration
 
 ### Commands (20+)
+
+**GitHub Workflow**
 - `/github:issue` - Create GitHub issues
 - `/github:start` - Start work on issue
 - `/github:pr` - Create Pull Request
 - `/github:merge` - Merge PR and cleanup
 - `/github:next` - Start next priority issue
-- `/scaffold:new-domain` - Create new domain
-- `/scaffold:new-endpoint` - Add endpoint to domain
+- `/github:priorities` - Analyze top 3 priority issues
+
+**Scaffolding**
+- `/scaffold:backend-core` - Generate core infrastructure (database, logging, settings)
+- `/scaffold:docker-dev` - Create Docker development environment
+- `/scaffold:new-domain` - Create complete domain (backend + frontend)
+- `/scaffold:new-endpoint` - Add endpoint to existing domain
+
+**Quality & Testing**
 - `/quality:review` - Automated code review
 - `/qa:review-done` - Automated QA review for issues in Done
-- `/db:migrate` - Manage database migrations
-- `/workflow:issue-complete` - Full issue workflow
+
+**Database**
+- `/db:migrate` - Manage Alembic database migrations
+
+**Workflows**
+- `/workflow:issue-complete` - Full issue workflow (implement → review → merge → next)
 
 ### Agents (3 total)
 - `issue-planner`: Analyzes and proposes implementation plans
@@ -99,8 +145,40 @@ claude-framework init
 
 ## Version
 
-- Current: 1.0.4
-- Status: Stable
+- **Current**: 1.1.0
+- **Status**: Stable
+- **Release Date**: December 2025
+
+### What's New in 1.1.0
+
+🚀 **Complete Project Initialization Wizard**
+- Interactive CLI wizard for zero-config project setup
+- Generates 100% functional full-stack applications
+- No manual configuration needed - Docker ready immediately
+
+🐳 **Docker Development Environment**
+- Complete docker-compose setup with MySQL or SQLite
+- Auto-rebuild on start (--build flag) prevents cache issues
+- Health checks and dependency management
+- Cross-platform scripts (Windows, Linux, Mac)
+
+📝 **Enhanced Code Generation**
+- 30+ production-ready templates
+- Backend core infrastructure scaffolding
+- Frontend initial structure with React 19 + Vite
+- Domain scaffolding with complete backend + frontend
+
+🔧 **Infrastructure Improvements**
+- Logging system with context tracking
+- Settings management with Pydantic
+- Database migrations with Alembic
+- CORS configuration and security middleware
+
+### Previous Releases
+
+**1.0.4** - Backend core scaffolding command
+**1.0.3** - Multi-database support
+**1.0.2** - Initial stable release
 
 ## License
 
