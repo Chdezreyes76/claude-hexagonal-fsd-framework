@@ -28,6 +28,7 @@ async function generateConfig(answers, frameworkRoot) {
   const config = {
     version: defaults.version,
     frameworkVersion: frameworkVersion,
+    projectType: answers.projectType || 'new',  // 'new' o 'existing'
     lastUpdated: new Date().toISOString(),
 
     project: {
@@ -97,7 +98,8 @@ async function generateConfig(answers, frameworkRoot) {
       autoImplement: answers.autoImplement !== undefined ? answers.autoImplement : defaults.workflows.autoImplement,
       autoReview: answers.autoReview !== undefined ? answers.autoReview : defaults.workflows.autoReview,
       autoMerge: answers.autoMerge !== undefined ? answers.autoMerge : defaults.workflows.autoMerge,
-      requireTests: answers.requireTests !== undefined ? answers.requireTests : defaults.workflows.requireTests
+      requireTests: answers.requireTests !== undefined ? answers.requireTests : defaults.workflows.requireTests,
+      scaffoldingAvailable: answers.projectType === 'new'  // Solo disponible en proyectos nuevos
     }
   };
 

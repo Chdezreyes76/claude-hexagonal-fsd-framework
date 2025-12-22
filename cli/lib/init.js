@@ -7,6 +7,7 @@ const { generateConfig, generateTemplateVariables } = require('./config-generato
 const { processTemplateDirectory } = require('./template-processor');
 const { validateConfig, validateProjectStructure, formatValidationErrors } = require('./validator');
 const { isValidEmail, isValidPort } = require('./utils');
+const { detectProjectStructure, generateDetectionSummary } = require('./project-detector');
 
 /**
  * Ejecuta el wizard de inicialización
@@ -24,6 +25,98 @@ async function initWizard(targetProjectPath, options = {}) {
     if (!await fs.pathExists(coreDir)) {
       throw new Error(`Framework core not found at ${coreDir}`);
     }
+
+    // Detectar estructura del proyecto
+    console.log(chalk.gray('Analyzing project structure...\n'));
+    const detection = await detectProjectStructure(targetProjectPath);
+
+    // Verificar si ya está instalado
+    if (detection.frameworkInstalled) {
+      console.log(chalk.yellow('⚠️  Framework is already installed in this project!'));
+      console.log(chalk.yellow(`   Version: ${detection.frameworkVersion}\n`));
+
+      const confirmReinstall = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'reinstall',
+          message: 'Do you want to reinstall/update the framework?',
+          default: false
+        }
+      ]);
+
+      if (!confirmReinstall.reinstall) {
+        console.log(chalk.gray('\nSetup cancelled.\n'));
+        process.exit(0);
+      }
+
+      console.log(chalk.yellow('\n⚠️  Warning: This will overwrite existing .claude/ directory.'));
+      console.log(chalk.yellow('   Make sure to backup any custom modifications.\n'));
+    }
+
+    // Paso 0: Determinar tipo de proyecto
+    console.log(chalk.yellow.bold('\n🎯 Project Type\n'));
+
+    let projectTypeChoice;
+
+    // Si detectamos backend o frontend existente, sugerir "existing"
+    if (detection.isExistingProject) {
+      console.log(chalk.green('✓ Existing project structure detected:'));
+      if (detection.backend.exists) {
+        console.log(chalk.gray(`  - Backend: ${detection.backend.framework || 'detected'} (${detection.backend.dirName}/)`));
+      }
+      if (detection.frontend.exists) {
+        console.log(chalk.gray(`  - Frontend: ${detection.frontend.framework || 'detected'} (${detection.frontend.dirName}/)`));
+      }
+      console.log('');
+
+      projectTypeChoice = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'projectType',
+          message: 'How do you want to proceed?',
+          choices: [
+            {
+              name: '📦 Add Claude tools to existing project (recommended)',
+              value: 'existing',
+              short: 'Existing'
+            },
+            {
+              name: '🆕 Treat as new project and generate structure',
+              value: 'new',
+              short: 'New'
+            }
+          ],
+          default: 'existing'
+        }
+      ]);
+    } else {
+      // Proyecto vacío/nuevo
+      console.log(chalk.blue('ℹ No existing project structure detected.\n'));
+
+      projectTypeChoice = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'projectType',
+          message: 'What type of project is this?',
+          choices: [
+            {
+              name: '🆕 New Project - Generate full project structure',
+              value: 'new',
+              short: 'New'
+            },
+            {
+              name: '📦 Existing Project - Add Claude tools only',
+              value: 'existing',
+              short: 'Existing'
+            }
+          ],
+          default: 'new'
+        }
+      ]);
+    }
+
+    const isNewProject = projectTypeChoice.projectType === 'new';
+    console.log(chalk.gray(`\nMode: ${isNewProject ? 'New Project' : 'Existing Project'}\n`));
 
     // Paso 1: Información del proyecto
     console.log(chalk.yellow.bold('\n📋 Project Information\n'));
@@ -107,18 +200,35 @@ async function initWizard(targetProjectPath, options = {}) {
 
     // Paso 3: Stack tecnológico
     console.log(chalk.yellow.bold('\n🛠️  Technology Stack\n'));
+
+    // Para proyectos existentes, mostrar lo detectado y permitir confirmar
+    if (!isNewProject && detection.isExistingProject) {
+      console.log(chalk.green('Detected configuration:'));
+      if (detection.backend.exists) {
+        console.log(chalk.gray(`  Backend: ${detection.backend.dirName}/ (port ${detection.backend.port})`));
+      }
+      if (detection.frontend.exists) {
+        console.log(chalk.gray(`  Frontend: ${detection.frontend.dirName}/ (port ${detection.frontend.port})`));
+      }
+      if (detection.database.type) {
+        console.log(chalk.gray(`  Database: ${detection.database.type} (port ${detection.database.port})`));
+      }
+      console.log('');
+    }
+
     const stackAnswers = await inquirer.prompt([
       {
         type: 'input',
         name: 'backendDir',
         message: 'Backend directory:',
-        default: 'backend'
+        default: detection.backend.dirName || 'backend',
+        when: () => isNewProject || !detection.backend.exists
       },
       {
         type: 'input',
         name: 'backendPort',
         message: 'Backend port:',
-        default: '8000',
+        default: detection.backend.port?.toString() || '8000',
         validate: (input) => {
           if (!isValidPort(input)) {
             return 'Port must be between 1 and 65535';
@@ -130,13 +240,14 @@ async function initWizard(targetProjectPath, options = {}) {
         type: 'input',
         name: 'frontendDir',
         message: 'Frontend directory:',
-        default: 'frontend'
+        default: detection.frontend.dirName || 'frontend',
+        when: () => isNewProject || !detection.frontend.exists
       },
       {
         type: 'input',
         name: 'frontendPort',
         message: 'Frontend port:',
-        default: '3000',
+        default: detection.frontend.port?.toString() || '3000',
         validate: (input) => {
           if (!isValidPort(input)) {
             return 'Port must be between 1 and 65535';
@@ -148,14 +259,20 @@ async function initWizard(targetProjectPath, options = {}) {
         type: 'list',
         name: 'dbType',
         message: 'Database type:',
-        choices: ['mysql', 'postgresql'],
-        default: 'mysql'
+        choices: ['mysql', 'postgresql', 'sqlserver', 'sqlite'],
+        default: detection.database.type || 'mysql'
       },
       {
         type: 'input',
         name: 'dbPort',
         message: 'Database port:',
-        default: (answers) => (answers.dbType === 'mysql' ? '3306' : '5432'),
+        default: (answers) => {
+          if (detection.database.port) return detection.database.port.toString();
+          return answers.dbType === 'mysql' ? '3306' :
+                 answers.dbType === 'postgresql' ? '5432' :
+                 answers.dbType === 'sqlserver' ? '1433' : '';
+        },
+        when: (answers) => answers.dbType !== 'sqlite',
         validate: (input) => {
           if (!isValidPort(input)) {
             return 'Port must be between 1 and 65535';
@@ -168,6 +285,7 @@ async function initWizard(targetProjectPath, options = {}) {
         name: 'dbName',
         message: 'Database name:',
         default: (answers) => {
+          if (detection.database.name) return detection.database.name;
           const name = projectAnswers.projectName
             .toLowerCase()
             .replace(/[\s-]+/g, '_')
@@ -183,41 +301,107 @@ async function initWizard(targetProjectPath, options = {}) {
       }
     ]);
 
+    // Agregar valores detectados que no se preguntaron
+    if (!isNewProject && detection.backend.exists && !stackAnswers.backendDir) {
+      stackAnswers.backendDir = detection.backend.dirName;
+    }
+    if (!isNewProject && detection.frontend.exists && !stackAnswers.frontendDir) {
+      stackAnswers.frontendDir = detection.frontend.dirName;
+    }
+
     // Paso 4: Dominios de negocio (opcional)
-    console.log(chalk.yellow.bold('\n📦 Initial Business Domains (optional)\n'));
-    console.log(chalk.gray('  You can add example domains that will be used in skills and documentation.\n'));
+    console.log(chalk.yellow.bold('\n📦 Business Domains\n'));
 
+    // Mostrar dominios detectados en proyectos existentes
     const domains = [];
-    let addingDomains = true;
+    if (!isNewProject && detection.domains.length > 0) {
+      console.log(chalk.green('Detected existing domains:'));
+      detection.domains.forEach(domain => {
+        console.log(chalk.gray(`  - ${domain}`));
+        domains.push(domain);
+      });
+      console.log('');
 
-    while (addingDomains) {
-      const domainAnswer = await inquirer.prompt([
+      const addMoreDomains = await inquirer.prompt([
         {
-          type: 'input',
-          name: 'domain',
-          message: `Add domain ${domains.length > 0 ? `(${domains.join(', ')}) ` : ''}(Enter to skip):`,
-          validate: (input) => {
-            if (!input) return true; // Allow empty to skip
-            if (!/^[a-z][a-z0-9_-]*$/.test(input)) {
-              return 'Domain name must be lowercase with optional hyphens or underscores';
-            }
-            if (domains.includes(input)) {
-              return 'Domain already added';
-            }
-            return true;
-          }
+          type: 'confirm',
+          name: 'addMore',
+          message: 'Add more domains?',
+          default: false
         }
       ]);
 
-      if (domainAnswer.domain && domainAnswer.domain.trim()) {
-        domains.push(domainAnswer.domain.trim());
+      if (!addMoreDomains.addMore) {
+        console.log(chalk.gray('Using detected domains.\n'));
       } else {
-        addingDomains = false;
+        let addingDomains = true;
+        while (addingDomains) {
+          const domainAnswer = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'domain',
+              message: `Add domain (${domains.join(', ')}) (Enter to finish):`,
+              validate: (input) => {
+                if (!input) return true;
+                if (!/^[a-z][a-z0-9_-]*$/.test(input)) {
+                  return 'Domain name must be lowercase with optional hyphens or underscores';
+                }
+                if (domains.includes(input)) {
+                  return 'Domain already added';
+                }
+                return true;
+              }
+            }
+          ]);
+
+          if (domainAnswer.domain && domainAnswer.domain.trim()) {
+            domains.push(domainAnswer.domain.trim());
+          } else {
+            addingDomains = false;
+          }
+        }
+      }
+    } else {
+      // Proyecto nuevo o sin dominios detectados
+      console.log(chalk.gray('  Add example domains for skills and documentation.\n'));
+
+      let addingDomains = true;
+      while (addingDomains) {
+        const domainAnswer = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'domain',
+            message: `Add domain ${domains.length > 0 ? `(${domains.join(', ')}) ` : ''}(Enter to skip):`,
+            validate: (input) => {
+              if (!input) return true;
+              if (!/^[a-z][a-z0-9_-]*$/.test(input)) {
+                return 'Domain name must be lowercase with optional hyphens or underscores';
+              }
+              if (domains.includes(input)) {
+                return 'Domain already added';
+              }
+              return true;
+            }
+          }
+        ]);
+
+        if (domainAnswer.domain && domainAnswer.domain.trim()) {
+          domains.push(domainAnswer.domain.trim());
+        } else {
+          addingDomains = false;
+        }
       }
     }
 
     // Paso 5: Customización de QA y workflows
     console.log(chalk.yellow.bold('\n🎨 Customization\n'));
+
+    // Nota para proyectos existentes
+    if (!isNewProject) {
+      console.log(chalk.gray('  Note: Scaffolding is not available for existing projects.'));
+      console.log(chalk.gray('  Only automation and workflow tools will be configured.\n'));
+    }
+
     const customAnswers = await inquirer.prompt([
       {
         type: 'confirm',
@@ -264,7 +448,9 @@ async function initWizard(targetProjectPath, options = {}) {
       ...teamAnswers,
       ...stackAnswers,
       ...customAnswers,
-      domains
+      domains,
+      projectType: isNewProject ? 'new' : 'existing',
+      detection: detection  // Pasar información de detección al generador
     };
 
     // Paso 6: Generar configuración
