@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-22
+
+### Fixed
+- **Repository URLs**: Corrected all references from `yourorg` to `Chdezreyes76` across documentation
+  - README.md git clone instructions
+  - CLI examples and quick reference
+  - Getting started documentation
+  - All GitHub repository links now point to correct URL
+
+### Removed
+- **Internal Development Files**: Cleaned up files not intended for public distribution
+  - Development scripts (SETUP.ps1, PARAMETRIZE.ps1, generate-cli.ps1)
+  - Internal documentation (FRAMEWORK_COMPLETE.md, FRAMEWORK_STATUS.md, INSTRUCCIONES.md)
+  - Internal CLI docs (FILES_CREATED.txt, DELIVERY_SUMMARY.md, IMPLEMENTATION_SUMMARY.md, MANIFEST.md)
+  - Project-specific examples (EXAMPLE_PRIORITIES.md, EXAMPLE_SESSION.md)
+  - Unparametrized agent file (code-reviewer.md - .tmpl version exists)
+  - Updated .gitignore to prevent future inclusion
+
+### Changed
+- **Documentation Improvements**:
+  - Added professional badges to README (license, version, technologies, status)
+  - Updated skill titles from "Gextiona" to generic "Patterns"
+  - Replaced Gextiona-specific examples with generic MyApp examples
+  - Added 20 GitHub topics for better discoverability
+
+### Notes
+- This is a cleanup release with no functional changes to the framework
+- All core features from v1.0.0 remain unchanged
+- Repository now contains only user-facing documentation and code
+
 ## [1.0.0] - 2025-12-21
 
 ### Added
@@ -118,4 +148,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready for production use in hexagonal architecture + FSD projects
 - Fully parametrized with zero hard-coded references
 
+[1.0.1]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/releases/tag/v1.0.0
