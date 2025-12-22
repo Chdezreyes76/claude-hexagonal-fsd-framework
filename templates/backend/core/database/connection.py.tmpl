@@ -1,0 +1,75 @@
+"""
+Database connection setup.
+Soporta MySQL, PostgreSQL, SQLServer y SQLite.
+"""
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base
+from core.settings import settings, get_database_url
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Construir URL de la base de datos
+DATABASE_URL = get_database_url()
+
+# Configuración del engine según el tipo de base de datos
+engine_config = {
+    "echo": settings.DB_ECHO,
+}
+
+# Configuración específica para cada tipo de DB
+if settings.DB_TYPE == "sqlite":
+    # SQLite: connection pooling no es necesario
+    engine_config["connect_args"] = {"check_same_thread": False}
+else:
+    # MySQL, PostgreSQL, SQLServer: usar connection pooling
+    engine_config.update({
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+        "pool_recycle": settings.DB_POOL_RECYCLE,
+        "pool_pre_ping": True,  # Verificar conexión antes de usar
+    })
+
+# Crear engine
+engine = create_engine(DATABASE_URL, **engine_config)
+
+# Base declarativa para modelos ORM
+Base = declarative_base()
+
+logger.info(
+    f"Database engine created",
+    extra={
+        "db_type": settings.DB_TYPE,
+        "db_name": settings.DB_NAME,
+        "pool_size": engine_config.get("pool_size", "N/A"),
+    }
+)
+
+
+def init_db():
+    """
+    Inicializa la base de datos.
+    Crea todas las tablas definidas en los modelos.
+    """
+    from core.logging import get_logger
+
+    logger = get_logger(__name__)
+
+    try:
+        # Importar todos los modelos aquí para que SQLAlchemy los conozca
+        # from adapter.outbound.database.models import usuario_model  # ejemplo
+
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}", exc_info=True)
+        raise
+
+
+def close_db():
+    """
+    Cierra las conexiones de la base de datos.
+    """
+    engine.dispose()
+    logger.info("Database connections closed")

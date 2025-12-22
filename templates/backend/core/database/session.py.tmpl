@@ -1,0 +1,67 @@
+"""
+Database session management.
+Provides session factory and dependency injection for FastAPI.
+"""
+from sqlalchemy.orm import sessionmaker, Session
+from typing import Generator
+from core.database.connection import engine
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False,
+)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Dependency que provee una sesión de base de datos.
+
+    Usage en FastAPI:
+        @router.get("/items")
+        def get_items(db: Session = Depends(get_db)):
+            return db.query(Item).all()
+
+    Yields:
+        Session: SQLAlchemy session
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception as e:
+        logger.error(f"Database session error: {e}", exc_info=True)
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+class DatabaseSession:
+    """
+    Context manager para uso manual de sesiones.
+
+    Usage:
+        with DatabaseSession() as db:
+            items = db.query(Item).all()
+    """
+
+    def __init__(self):
+        self.db: Session = None
+
+    def __enter__(self) -> Session:
+        self.db = SessionLocal()
+        return self.db
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            logger.error(
+                f"Database session error: {exc_val}",
+                exc_info=(exc_type, exc_val, exc_tb)
+            )
+            self.db.rollback()
+        self.db.close()

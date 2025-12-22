@@ -1,0 +1,19 @@
+"""
+Core infrastructure for {{projectName}}.
+Provides database, logging, and configuration management.
+"""
+from core.settings import settings
+from core.logging import get_logger, setup_logging
+from core.database import engine, Base, get_db, SessionLocal
+
+__version__ = "{{project.version}}"
+
+__all__ = [
+    "settings",
+    "get_logger",
+    "setup_logging",
+    "engine",
+    "Base",
+    "get_db",
+    "SessionLocal",
+]

@@ -1,0 +1,104 @@
+"""
+Configuración centralizada de la aplicación.
+Lee variables de entorno desde .env
+"""
+from pydantic_settings import BaseSettings
+from typing import Optional, Literal
+
+
+class Settings(BaseSettings):
+    """Configuración de la aplicación"""
+
+    # ============================================================================
+    # APPLICATION
+    # ============================================================================
+    APP_NAME: str = "{{projectName}}"
+    APP_VERSION: str = "{{project.version}}"
+    DEBUG: bool = False
+    ENVIRONMENT: str = "development"
+
+    # ============================================================================
+    # DATABASE
+    # ============================================================================
+    DB_TYPE: Literal["mysql", "postgresql", "sqlserver", "sqlite"] = "{{stack.database.type}}"
+    DB_HOST: str = "localhost"
+    DB_PORT: int = {{stack.database.port}}
+    DB_USER: str = "{{stack.database.user}}"
+    DB_PASSWORD: str = ""
+    DB_NAME: str = "{{stack.database.name}}"
+
+    # SQLite specific
+    DB_SQLITE_PATH: str = "./{{stack.database.name}}.db"
+
+    # Connection pool settings
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 3600
+    DB_ECHO: bool = False  # Log SQL queries
+
+    # ============================================================================
+    # LOGGING
+    # ============================================================================
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: Literal["json", "console"] = "console"
+    LOG_FILE: Optional[str] = None  # Path to log file (optional)
+    LOG_FILE_MAX_BYTES: int = 10485760  # 10MB
+    LOG_FILE_BACKUP_COUNT: int = 5
+
+    # ============================================================================
+    # SECURITY
+    # ============================================================================
+    SECRET_KEY: str = "changeme-in-production"
+    ALLOWED_HOSTS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    # ============================================================================
+    # API
+    # ============================================================================
+    API_V1_PREFIX: str = "/api/v1"
+    API_TITLE: str = "{{projectName}} API"
+    API_DESCRIPTION: str = "{{project.description}}"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+
+
+# Singleton instance
+settings = Settings()
+
+
+def get_database_url() -> str:
+    """
+    Construye la URL de conexión a la base de datos según el tipo.
+
+    Returns:
+        str: Database connection URL
+    """
+    if settings.DB_TYPE == "sqlite":
+        return f"sqlite:///{settings.DB_SQLITE_PATH}"
+
+    elif settings.DB_TYPE == "mysql":
+        return (
+            f"mysql+pymysql://{settings.DB_USER}:{settings.DB_PASSWORD}"
+            f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+            f"?charset=utf8mb4"
+        )
+
+    elif settings.DB_TYPE == "postgresql":
+        return (
+            f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}"
+            f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+        )
+
+    elif settings.DB_TYPE == "sqlserver":
+        return (
+            f"mssql+pyodbc://{settings.DB_USER}:{settings.DB_PASSWORD}"
+            f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+            f"?driver=ODBC+Driver+17+for+SQL+Server"
+        )
+
+    else:
+        raise ValueError(f"Unsupported database type: {settings.DB_TYPE}")

@@ -1,0 +1,114 @@
+"""
+Context management for logging.
+Provides correlation IDs and request context tracking.
+"""
+import contextvars
+from uuid import uuid4
+from typing import Optional, Dict, Any
+
+# Context variables
+correlation_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    'correlation_id', default=None
+)
+
+request_context: contextvars.ContextVar[Dict[str, Any]] = contextvars.ContextVar(
+    'request_context', default={}
+)
+
+
+def get_correlation_id() -> str:
+    """
+    Obtiene el correlation ID actual.
+    Si no existe, genera uno nuevo.
+
+    Returns:
+        str: Correlation ID (UUID)
+    """
+    cid = correlation_id.get()
+    if not cid:
+        cid = str(uuid4())
+        correlation_id.set(cid)
+    return cid
+
+
+def set_correlation_id(cid: str) -> None:
+    """
+    Establece el correlation ID.
+
+    Args:
+        cid: Correlation ID to set
+    """
+    correlation_id.set(cid)
+
+
+def clear_correlation_id() -> None:
+    """
+    Limpia el correlation ID actual.
+    """
+    correlation_id.set(None)
+
+
+def get_request_context() -> Dict[str, Any]:
+    """
+    Obtiene el contexto de la request actual.
+
+    Returns:
+        Dict[str, Any]: Request context (user, endpoint, method, etc.)
+    """
+    return request_context.get() or {}
+
+
+def set_request_context(context: Dict[str, Any]) -> None:
+    """
+    Establece el contexto de la request.
+
+    Args:
+        context: Dictionary with request information
+            - user_id: str (optional)
+            - endpoint: str (optional)
+            - method: str (optional)
+            - ip_address: str (optional)
+            - user_agent: str (optional)
+    """
+    request_context.set(context)
+
+
+def update_request_context(**kwargs) -> None:
+    """
+    Actualiza el contexto de la request con valores adicionales.
+
+    Args:
+        **kwargs: Key-value pairs to add to context
+    """
+    current = get_request_context()
+    current.update(kwargs)
+    request_context.set(current)
+
+
+def clear_request_context() -> None:
+    """
+    Limpia el contexto de la request.
+    """
+    request_context.set({})
+
+
+class RequestContextManager:
+    """
+    Context manager para establecer y limpiar el request context automáticamente.
+
+    Usage:
+        with RequestContextManager(user_id="123", endpoint="/api/users"):
+            logger.info("Processing request")  # Incluirá el contexto
+    """
+
+    def __init__(self, **context):
+        self.context = context
+        self.previous_context = None
+
+    def __enter__(self):
+        self.previous_context = get_request_context()
+        set_request_context(self.context)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        set_request_context(self.previous_context or {})

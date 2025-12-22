@@ -1,0 +1,146 @@
+"""
+Custom log formatters for JSON and Console output.
+"""
+import logging
+import json
+import traceback
+from datetime import datetime
+from typing import Dict, Any
+from core.logging.context import get_correlation_id, get_request_context
+
+
+class JSONFormatter(logging.Formatter):
+    """
+    Formatter que genera logs en formato JSON.
+    Útil para producción y análisis con herramientas como ELK.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Formatea el log record como JSON.
+
+        Args:
+            record: Log record to format
+
+        Returns:
+            str: JSON formatted log
+        """
+        log_data: Dict[str, Any] = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "correlation_id": get_correlation_id(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+            "process": record.process,
+            "thread": record.thread,
+        }
+
+        # Agregar contexto de la request si existe
+        request_ctx = get_request_context()
+        if request_ctx:
+            log_data["request"] = request_ctx
+
+        # Agregar información de excepción si existe
+        if record.exc_info:
+            log_data["exception"] = {
+                "type": record.exc_info[0].__name__,
+                "message": str(record.exc_info[1]),
+                "traceback": traceback.format_exception(*record.exc_info),
+            }
+
+        # Agregar campos extra del record
+        if hasattr(record, "extra_fields"):
+            log_data["extra"] = record.extra_fields
+
+        return json.dumps(log_data, default=str)
+
+
+class ConsoleFormatter(logging.Formatter):
+    """
+    Formatter para consola con colores y formato legible.
+    Útil para desarrollo local.
+    """
+
+    # Colores ANSI
+    COLORS = {
+        "DEBUG": "\033[36m",      # Cyan
+        "INFO": "\033[32m",       # Green
+        "WARNING": "\033[33m",    # Yellow
+        "ERROR": "\033[31m",      # Red
+        "CRITICAL": "\033[35m",   # Magenta
+    }
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Formatea el log record para consola con colores.
+
+        Args:
+            record: Log record to format
+
+        Returns:
+            str: Colored console log
+        """
+        # Agregar correlation ID al record
+        record.correlation_id = get_correlation_id()[:8]  # Solo primeros 8 chars
+
+        # Agregar request context si existe
+        request_ctx = get_request_context()
+        if request_ctx:
+            user_id = request_ctx.get("user_id", "anonymous")
+            endpoint = request_ctx.get("endpoint", "")
+            record.request_info = f"[{user_id}@{endpoint}]" if endpoint else f"[{user_id}]"
+        else:
+            record.request_info = ""
+
+        # Color según el nivel
+        color = self.COLORS.get(record.levelname, "")
+        reset = self.RESET
+
+        # Formatear mensaje base
+        formatted = super().format(record)
+
+        # Agregar color
+        formatted = f"{color}{formatted}{reset}"
+
+        # Agregar excepción si existe
+        if record.exc_info:
+            formatted += f"\n{self.formatException(record.exc_info)}"
+
+        return formatted
+
+
+class DetailedConsoleFormatter(ConsoleFormatter):
+    """
+    Formatter de consola con información extendida.
+    Muestra más detalles (módulo, función, línea).
+    """
+
+    def __init__(self):
+        format_string = (
+            f"{self.BOLD}%(asctime)s{self.RESET} "
+            f"[%(correlation_id)s] "
+            f"%(request_info)s "
+            f"%(levelname)-8s "
+            f"{self.BOLD}%(name)s{self.RESET} "
+            f"(%(module)s.%(funcName)s:%(lineno)d) - "
+            f"%(message)s"
+        )
+        super().__init__(fmt=format_string, datefmt="%Y-%m-%d %H:%M:%S")
+
+
+class SimpleConsoleFormatter(ConsoleFormatter):
+    """
+    Formatter de consola simple para desarrollo.
+    Solo muestra lo esencial.
+    """
+
+    def __init__(self):
+        format_string = (
+            "%(asctime)s [%(correlation_id)s] %(levelname)-8s - %(message)s"
+        )
+        super().__init__(fmt=format_string, datefmt="%H:%M:%S")

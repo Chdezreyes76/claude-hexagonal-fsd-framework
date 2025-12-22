@@ -1,0 +1,171 @@
+"""
+Logger factory and configuration.
+Provides centralized logger creation and setup.
+"""
+import logging
+import sys
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+from typing import Optional
+from core.settings import settings
+from core.logging.formatters import (
+    JSONFormatter,
+    SimpleConsoleFormatter,
+    DetailedConsoleFormatter,
+)
+
+# Cache de loggers configurados
+_configured_loggers = set()
+
+
+def get_logger(name: str) -> logging.Logger:
+    """
+    Obtiene o crea un logger con la configuración centralizada.
+
+    Args:
+        name: Nombre del logger (típicamente __name__)
+
+    Returns:
+        logging.Logger: Logger configurado
+
+    Usage:
+        logger = get_logger(__name__)
+        logger.info("Message", extra={"key": "value"})
+    """
+    logger = logging.getLogger(name)
+
+    # Configurar solo una vez
+    if name not in _configured_loggers:
+        logger.setLevel(settings.LOG_LEVEL)
+
+        # Limpiar handlers existentes
+        logger.handlers.clear()
+
+        # Handler de consola
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(settings.LOG_LEVEL)
+
+        # Seleccionar formatter según configuración
+        if settings.LOG_FORMAT == "json":
+            console_handler.setFormatter(JSONFormatter())
+        elif settings.DEBUG:
+            console_handler.setFormatter(DetailedConsoleFormatter())
+        else:
+            console_handler.setFormatter(SimpleConsoleFormatter())
+
+        logger.addHandler(console_handler)
+
+        # Handler de archivo (opcional)
+        if settings.LOG_FILE:
+            file_handler = RotatingFileHandler(
+                settings.LOG_FILE,
+                maxBytes=settings.LOG_FILE_MAX_BYTES,
+                backupCount=settings.LOG_FILE_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+            file_handler.setLevel(settings.LOG_LEVEL)
+            file_handler.setFormatter(JSONFormatter())  # Siempre JSON en archivo
+            logger.addHandler(file_handler)
+
+        # Prevenir propagación al logger raíz
+        logger.propagate = False
+
+        _configured_loggers.add(name)
+
+    return logger
+
+
+def setup_logging(
+    level: Optional[str] = None,
+    format_type: Optional[str] = None,
+    log_file: Optional[str] = None,
+) -> None:
+    """
+    Configura el sistema de logging globalmente.
+
+    Args:
+        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        format_type: Format type ("json" or "console")
+        log_file: Path to log file (optional)
+
+    Usage:
+        # En main.py al inicio de la aplicación
+        setup_logging(level="INFO", format_type="json")
+    """
+    # Actualizar settings si se proporcionan valores
+    if level:
+        settings.LOG_LEVEL = level
+    if format_type:
+        settings.LOG_FORMAT = format_type
+    if log_file:
+        settings.LOG_FILE = log_file
+
+    # Limpiar loggers configurados para reconfigurar
+    _configured_loggers.clear()
+
+    # Configurar logger raíz
+    root_logger = logging.getLogger()
+    root_logger.setLevel(settings.LOG_LEVEL)
+    root_logger.handlers.clear()
+
+    # Handler de consola para root
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(settings.LOG_LEVEL)
+
+    if settings.LOG_FORMAT == "json":
+        console_handler.setFormatter(JSONFormatter())
+    elif settings.DEBUG:
+        console_handler.setFormatter(DetailedConsoleFormatter())
+    else:
+        console_handler.setFormatter(SimpleConsoleFormatter())
+
+    root_logger.addHandler(console_handler)
+
+    # Handler de archivo para root (opcional)
+    if settings.LOG_FILE:
+        log_path = Path(settings.LOG_FILE)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        file_handler = RotatingFileHandler(
+            settings.LOG_FILE,
+            maxBytes=settings.LOG_FILE_MAX_BYTES,
+            backupCount=settings.LOG_FILE_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        file_handler.setLevel(settings.LOG_LEVEL)
+        file_handler.setFormatter(JSONFormatter())
+        root_logger.addHandler(file_handler)
+
+    # Log inicial
+    logger = get_logger(__name__)
+    logger.info(
+        "Logging system initialized",
+        extra={
+            "level": settings.LOG_LEVEL,
+            "format": settings.LOG_FORMAT,
+            "log_file": settings.LOG_FILE or "None",
+        }
+    )
+
+
+def disable_external_loggers():
+    """
+    Deshabilita o reduce el nivel de logs de librerías externas ruidosas.
+
+    Usage:
+        # En main.py después de setup_logging()
+        disable_external_loggers()
+    """
+    # SQLAlchemy
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+
+    # Alembic
+    logging.getLogger("alembic").setLevel(logging.WARNING)
+
+    # Uvicorn (si usas FastAPI)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+    # httpx / requests
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)

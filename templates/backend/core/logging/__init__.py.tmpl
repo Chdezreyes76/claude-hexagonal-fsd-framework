@@ -1,0 +1,20 @@
+"""
+Centralized logging infrastructure.
+Provides context tracking, formatters, and logger factory.
+"""
+from core.logging.logger import get_logger, setup_logging
+from core.logging.context import (
+    get_correlation_id,
+    set_correlation_id,
+    get_request_context,
+    set_request_context,
+)
+
+__all__ = [
+    "get_logger",
+    "setup_logging",
+    "get_correlation_id",
+    "set_correlation_id",
+    "get_request_context",
+    "set_request_context",
+]
