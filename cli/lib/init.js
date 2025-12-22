@@ -322,9 +322,11 @@ async function setupClaudeDirectory(projectRoot, frameworkRoot, config, options 
   const templateVars = generateTemplateVariables(config);
 
   // Procesar y copiar archivos con templates
+  // Excluir commands y skills del procesamiento porque contienen ejemplos de sintaxis Mustache
   const results = await processTemplateDirectory(coreDir, claudeDir, templateVars, {
     processExtensions: ['.md', '.json', '.py', '.js', '.ts', '.tsx', '.yml', '.yaml', '.sh'],
-    removeTmplExtension: true
+    removeTmplExtension: true,
+    excludeDirs: ['commands', 'skills']
   });
 
   spinner.succeed(`Framework files copied (${results.processed.length} processed, ${results.copied.length} copied)`);

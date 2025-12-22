@@ -29,7 +29,8 @@ async function processTemplateDirectory(sourceDir, targetDir, variables, options
   const {
     skipExtensions = [],
     processExtensions = ['.md', '.json', '.py', '.js', '.ts', '.tsx', '.yml', '.yaml', '.sh'],
-    removeTmplExtension = true
+    removeTmplExtension = true,
+    excludeDirs = []
   } = options;
 
   const results = {
@@ -50,11 +51,25 @@ async function processTemplateDirectory(sourceDir, targetDir, variables, options
       let targetPath = path.join(targetDir, entry.name);
 
       if (entry.isDirectory()) {
-        // Procesar subdirectorio recursivamente
-        const subResults = await processTemplateDirectory(sourcePath, targetPath, variables, options);
-        results.processed.push(...subResults.processed);
-        results.copied.push(...subResults.copied);
-        results.errors.push(...subResults.errors);
+        // Verificar si este directorio debe ser excluido del procesamiento
+        const shouldExclude = excludeDirs.some(excludeDir => {
+          // Normalizar paths para comparación
+          const normalizedSource = path.normalize(sourcePath);
+          const normalizedExclude = path.normalize(path.join(sourceDir, excludeDir));
+          return normalizedSource === normalizedExclude || entry.name === excludeDir;
+        });
+
+        if (shouldExclude) {
+          // Copiar el directorio completo sin procesar
+          await fs.copy(sourcePath, targetPath);
+          results.copied.push(targetPath);
+        } else {
+          // Procesar subdirectorio recursivamente
+          const subResults = await processTemplateDirectory(sourcePath, targetPath, variables, options);
+          results.processed.push(...subResults.processed);
+          results.copied.push(...subResults.copied);
+          results.errors.push(...subResults.errors);
+        }
       } else {
         const ext = path.extname(entry.name);
         const isTmpl = entry.name.endsWith('.tmpl');
