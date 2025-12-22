@@ -1,6 +1,104 @@
+---
+description: Generar infraestructura core del backend (database, logging, settings)
+allowed-tools: Read, Write, Bash(mkdir:*), Bash(pip:*), Glob
+---
+
 # Backend Core Scaffolding
 
-Generates complete backend core infrastructure with database connection, logging system, and centralized configuration.
+El usuario quiere generar la infraestructura core del backend. Argumentos: $ARGUMENTS
+
+## Objetivo
+
+Genera la infraestructura completa de `core/` con:
+- Database connection (MySQL, PostgreSQL, SQLServer, SQLite)
+- Logging system (JSON/Console, correlation IDs)
+- Centralized settings (Pydantic + .env)
+
+## Instrucciones
+
+1. **Leer configuración del proyecto**:
+   - Leer `.claude/claude.config.json` para obtener configuración del proyecto
+   - Extraer: `project.name`, `project.version`, `stack.database.type`, `stack.database.port`, etc.
+
+2. **Determinar el directorio backend**:
+   - Leer `stack.backend.dirName` del config (por defecto: "backend")
+   - Verificar que el directorio existe
+   - Si no existe, crearlo con `mkdir -p backend`
+
+3. **Crear estructura de directorios**:
+   ```bash
+   mkdir -p backend/core/database
+   mkdir -p backend/core/logging
+   ```
+
+4. **Procesar templates y generar archivos**:
+   - Leer templates desde `templates/backend/core/`
+   - Reemplazar variables Mustache con valores del config
+   - Escribir archivos en `backend/core/`
+
+   Archivos a generar:
+   - `backend/core/__init__.py`
+   - `backend/core/settings.py`
+   - `backend/core/database/__init__.py`
+   - `backend/core/database/connection.py`
+   - `backend/core/database/session.py`
+   - `backend/core/logging/__init__.py`
+   - `backend/core/logging/context.py`
+   - `backend/core/logging/formatters.py`
+   - `backend/core/logging/logger.py`
+   - `backend/.env.example`
+
+5. **Actualizar requirements.txt**:
+   - Leer `backend/requirements.txt` (si existe)
+   - Agregar dependencias desde `templates/backend/core/requirements-core.txt.tmpl`
+   - No duplicar dependencias existentes
+   - Si no existe requirements.txt, crearlo
+
+6. **Mostrar resumen al usuario**:
+   ```
+   ✅ Backend core infrastructure created!
+
+   Files created:
+   - core/settings.py
+   - core/database/ (3 files)
+   - core/logging/ (4 files)
+   - .env.example
+
+   Dependencies added to requirements.txt:
+   - pydantic-settings
+   - python-dotenv
+   - sqlalchemy
+   - [database driver based on DB type]
+
+   Next steps:
+   1. Copy .env.example to .env: cp backend/.env.example backend/.env
+   2. Update .env with your credentials
+   3. Install dependencies: pip install -r backend/requirements.txt
+   4. Initialize logging in main.py:
+      from core.logging import setup_logging
+      setup_logging()
+   ```
+
+## Variables de Template
+
+Al procesar templates, usar estas variables del config:
+- `{{projectName}}` - Nombre del proyecto
+- `{{project.version}}` - Versión
+- `{{project.description}}` - Descripción
+- `{{projectNameKebab}}` - Nombre en kebab-case
+- `{{stack.database.type}}` - Tipo de DB (mysql, postgresql, etc.)
+- `{{stack.database.port}}` - Puerto de la DB
+- `{{stack.database.user}}` - Usuario de la DB
+- `{{stack.database.name}}` - Nombre de la DB
+- `{{stack.frontend.port}}` - Puerto del frontend (para CORS)
+
+## Condicionales para Templates
+
+Según el tipo de base de datos, activar estos condicionales:
+- `{{#if_mysql}}` - Si DB es MySQL
+- `{{#if_postgresql}}` - Si DB es PostgreSQL
+- `{{#if_sqlserver}}` - Si DB es SQL Server
+- `{{#if_sqlite}}` - Si DB es SQLite
 
 ## Usage
 
