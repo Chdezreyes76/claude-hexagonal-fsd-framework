@@ -82,13 +82,18 @@ async function updateFramework(targetPath, options = {}) {
     const spinner = ora('Creating backup...').start();
 
     try {
-      // Backup entire .claude directory
-      await fs.copy(claudeDir, backupDir, {
-        filter: (src) => {
-          // Don't backup previous backups
-          return !src.includes('backup-');
+      // Create backup directory
+      await fs.ensureDir(backupDir);
+
+      // Copy contents of .claude directory (excluding backup directories)
+      const items = await fs.readdir(claudeDir);
+      for (const item of items) {
+        if (!item.startsWith('backup-')) {
+          const srcPath = path.join(claudeDir, item);
+          const destPath = path.join(backupDir, item);
+          await fs.copy(srcPath, destPath);
         }
-      });
+      }
 
       spinner.succeed(chalk.green(`✅ Backup created: ${path.basename(backupDir)}`));
 
