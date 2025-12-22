@@ -315,5 +315,5 @@ After running the wizard:
 ## Support
 
 For issues or questions:
-- GitHub: https://github.com/yourorg/claude-hexagonal-fsd-framework
+- GitHub: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
 - Documentation: See `/docs` in framework root

@@ -33,7 +33,7 @@ Comprehensive development automation framework for building full-stack applicati
 
 ```bash
 # Clone the framework
-git clone https://github.com/yourorg/claude-hexagonal-fsd-framework
+git clone https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
 cd claude-hexagonal-fsd-framework/cli
 
 # Install dependencies
@@ -107,7 +107,7 @@ MIT
 
 ## Support
 
-For issues and feature requests, visit the [GitHub repository](https://github.com/yourorg/claude-hexagonal-fsd-framework).
+For issues and feature requests, visit the [GitHub repository](https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework).
 
 ---
 

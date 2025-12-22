@@ -24,7 +24,7 @@ git clone <your-project-repo>
 cd <your-project>
 
 # Add framework as a submodule
-git submodule add https://github.com/yourorg/claude-hexagonal-fsd-framework .claude-framework
+git submodule add https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework .claude-framework
 
 # Navigate to CLI and install dependencies
 cd .claude-framework/cli
@@ -40,7 +40,7 @@ For standalone projects not using git submodules:
 
 ```bash
 # Clone the framework
-git clone https://github.com/yourorg/claude-hexagonal-fsd-framework
+git clone https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
 cd claude-hexagonal-fsd-framework/cli
 
 # Install dependencies
@@ -312,7 +312,7 @@ node index.js update ../..
 For issues, questions, or feature requests:
 - Check the [Configuration Reference](./configuration.md)
 - Read the [CLI Reference](./cli-reference.md)
-- Visit [GitHub Issues](https://github.com/yourorg/claude-hexagonal-fsd-framework/issues)
+- Visit [GitHub Issues](https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/issues)
 
 ## License
 

@@ -430,6 +430,6 @@ project/
 
 ## Support
 
-- GitHub: https://github.com/yourorg/claude-hexagonal-fsd-framework
-- Issues: https://github.com/yourorg/claude-hexagonal-fsd-framework/issues
+- GitHub: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
+- Issues: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/issues
 - Docs: See `/docs` in framework root

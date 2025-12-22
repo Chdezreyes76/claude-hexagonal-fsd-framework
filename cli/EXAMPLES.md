@@ -27,7 +27,7 @@ node /path/to/framework/cli/index.js init
 
 ```bash
 # Clone framework
-git clone https://github.com/yourorg/claude-hexagonal-fsd-framework
+git clone https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
 
 # Go to your project
 cd my-project
@@ -41,7 +41,7 @@ node ../claude-hexagonal-fsd-framework/cli/index.js init .
 ```bash
 # Add framework as submodule
 cd my-project
-git submodule add https://github.com/yourorg/claude-framework .claude-framework
+git submodule add https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework .claude-framework
 cd .claude-framework/cli
 
 # Install CLI dependencies
@@ -317,8 +317,8 @@ jobs:
 
       - name: Clone Framework
         run: |
-          git clone https://github.com/yourorg/claude-framework
-          cd claude-framework/cli
+          git clone https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework
+          cd claude-hexagonal-fsd-framework/cli
           npm install
 
       # Note: For CI, you'd need non-interactive mode (future enhancement)
