@@ -24,10 +24,18 @@ Ejecuta issues en bucle continuo hasta que el usuario detenga o no haya más iss
 /workflow:issue-complete --loop --max=3 --project=7  # Combinar ambos
 ```
 
+### Modo Totalmente Autónomo (Nuevo)
+Ejecuta el flujo completo sin intervención manual usando auto-selección y estrategias automáticas.
+```
+/workflow:issue-complete --loop --max=10 --project=7 --autonomous
+```
+
 **Parámetros disponibles**:
 - `--loop`: Activa modo bucle automático
 - `--max=N`: Limita a N issues como máximo
 - `--project=N`: Filtra solo issues del proyecto de GitHub #N
+- `--auto-select`: Auto-selecciona el issue #1 sin preguntar (implícito con --autonomous)
+- `--autonomous`: Alias que habilita todas las características autónomas (auto-select, auto-fix-reviews, etc.)
 
 **Cómo detener el bucle**:
 - Escribe "detener", "stop", "salir" o "exit" en cualquier momento
@@ -49,6 +57,25 @@ Ejecuta issues en bucle continuo hasta que el usuario detenga o no haya más iss
 
 ## PASO 1: Seleccionar Issue
 
+### Parsear Parámetros de $ARGUMENTS
+
+Primero, detectar los flags de autonomía:
+
+```javascript
+// Detectar flags en $ARGUMENTS
+const loopMode = $ARGUMENTS.includes('--loop')
+const autonomousMode = $ARGUMENTS.includes('--autonomous')
+const autoSelect = $ARGUMENTS.includes('--auto-select') || autonomousMode
+
+// Extraer --max=N
+const maxMatch = $ARGUMENTS.match(/--max=(\d+)/)
+const maxIssues = maxMatch ? parseInt(maxMatch[1]) : null
+
+// Extraer --project=N
+const projectMatch = $ARGUMENTS.match(/--project=(\d+)/)
+const projectNumber = projectMatch ? parseInt(projectMatch[1]) : null
+```
+
 ### Sin filtro de proyecto
 
 Ejecutar el skill `/github:next`:
@@ -60,9 +87,24 @@ Skill("github:next")
 Esto automáticamente:
 - Analiza issues por prioridad
 - Muestra top 5 más urgentes
-- Pregunta cuál resolver
+- **Si autoSelect está habilitado**: Selecciona automáticamente el #1 (más prioritario)
+- **Si autoSelect está deshabilitado**: Pregunta cuál resolver
 - Crea rama e inicia trabajo
 - Obtiene plan del issue-planner
+
+**Lógica de auto-selección**:
+```javascript
+if (loopMode && autoSelect) {
+  // En modo loop con auto-select, SIEMPRE seleccionar automáticamente el #1
+  const topIssue = priorities[0]
+  console.log(`✅ Auto-seleccionado: #${topIssue.number} "${topIssue.title}" (prioridad más alta)`)
+  selectedIssue = topIssue
+} else {
+  // Modo normal: preguntar al usuario
+  const answer = await AskUserQuestion("¿Cuál issue quieres resolver?")
+  selectedIssue = priorities[answer - 1]
+}
+```
 
 ### Con filtro de proyecto (`--project=N`)
 
@@ -83,11 +125,38 @@ Si se especificó `--project=N` en $ARGUMENTS:
    - Clasificar por prioridad (critical → high → medium → low)
    - Obtener top 5 más prioritarios **del proyecto**
 
-4. **Continuar flujo normal**:
+4. **Aplicar auto-selección o preguntar**:
    - Mostrar top 5 del proyecto
-   - Ejecutar Skill("github:next") con el issue seleccionado
+   - **Si autoSelect**: Seleccionar automáticamente el #1 del proyecto
+   - **Si no autoSelect**: Ejecutar Skill("github:next") con el issue seleccionado
 
-**Output esperado**: Branch creada, issue asignado del proyecto especificado, plan mostrado
+**Lógica de auto-selección con proyecto**:
+```javascript
+if (loopMode && autoSelect && projectNumber) {
+  // Auto-seleccionar el issue más prioritario del proyecto
+  const projectIssues = await getProjectIssues(projectNumber)
+  const topIssue = projectIssues[0]
+
+  console.log(`✅ Auto-seleccionado del proyecto #${projectNumber}: #${topIssue.number} "${topIssue.title}"`)
+
+  // Invocar github:start con el issue específico
+  await Skill("github:start", `${topIssue.number}`)
+} else if (projectNumber) {
+  // Modo normal con proyecto: mostrar top 5 y preguntar
+  const projectIssues = await getProjectIssues(projectNumber)
+  console.log("Top 5 issues del proyecto:")
+  projectIssues.slice(0, 5).forEach((issue, idx) => {
+    console.log(`  ${idx + 1}. #${issue.number} [${issue.priority}] ${issue.title}`)
+  })
+
+  const answer = await AskUserQuestion("¿Cuál issue del proyecto quieres resolver?")
+  const selectedIssue = projectIssues[answer - 1]
+
+  await Skill("github:start", `${selectedIssue.number}`)
+}
+```
+
+**Output esperado**: Branch creada, issue asignado (auto-seleccionado o elegido manualmente), plan mostrado
 
 ---
 
@@ -100,7 +169,146 @@ Una vez se obtiene el plan del issue-planner, se ejecuta automáticamente:
 - Realiza commits automáticamente siguiendo las convenciones del proyecto
 - Completa la implementación sin intervención del usuario
 
-**Output esperado**: Cambios implementados, commits realizados, rama actualizada
+**Manejo de Fallos de Implementación** (Nuevo - Fase 2):
+
+Si la implementación falla, el workflow reintenta hasta 3 veces:
+
+```javascript
+let attempts = 0
+const maxAttempts = 3
+
+while (attempts < maxAttempts) {
+  try {
+    await implementer.run(plan)
+
+    if (implementer.status === 'success') {
+      console.log(`✅ Implementación completada exitosamente`)
+      break
+    } else {
+      attempts++
+      console.log(`⚠️ Implementación falló (intento ${attempts}/${maxAttempts})`)
+
+      if (attempts < maxAttempts) {
+        console.log(`🔄 Reintentando...`)
+      }
+    }
+  } catch (error) {
+    attempts++
+    console.log(`❌ Error en implementación (intento ${attempts}/${maxAttempts}): ${error}`)
+  }
+}
+
+// Después de 3 fallos
+if (attempts >= maxAttempts && implementer.status !== 'success') {
+  console.log(`❌ Issue #${issue.number} falló después de ${maxAttempts} intentos`)
+
+  // Decidir qué hacer según configuración
+  if (session.autonomousMode || session.epicBreakdownOnFailure) {
+    // ESTRATEGIA 1: Epic Breakdown (PREFERIDO) ⭐
+    console.log(`🎯 Issue demasiado complejo, convirtiendo a Epic...`)
+
+    const epicResult = await Skill('github:epic-breakdown', issue.number.toString())
+
+    console.log(`\n✅ Epic creado exitosamente:`)
+    console.log(`   Proyecto: #${epicResult.projectNumber} - "${epicResult.projectTitle}"`)
+    console.log(`   Issue original → Epic #${issue.number}`)
+    console.log(`   Sub-issues creados: ${epicResult.totalSubIssues}`)
+
+    epicResult.subIssues.forEach((sub, idx) => {
+      console.log(`   ${idx + 1}. #${sub.number} [${sub.type}] ${sub.title}`)
+    })
+
+    console.log(`\n💡 Resolver Epic con:`)
+    console.log(`   /workflow:issue-complete --loop --project=${epicResult.projectNumber} --autonomous`)
+
+    // Registrar en sesión
+    session.issuesConvertidosEpic.push({
+      number: issue.number,
+      title: issue.title,
+      projectNumber: epicResult.projectNumber,
+      subIssues: epicResult.subIssues,
+      reason: 'Implementación falló después de 3 intentos'
+    })
+    session.issuesConvertedToEpic++
+
+    // Limpiar rama fallida
+    await Bash('git checkout master && git branch -D ' + branchName)
+
+    // Continuar con siguiente issue
+    console.log(`\n⏭️ Continuando con siguiente issue del loop principal...`)
+    continue  // Volver a PASO 1 con siguiente issue
+
+  } else if (session.loopMode && session.skipOnFailure) {
+    // ESTRATEGIA 2: Skip simple (fallback)
+    console.log(`⚠️ Saltando issue #${issue.number}`)
+
+    session.issuesSaltados.push({
+      number: issue.number,
+      title: issue.title,
+      reason: 'Implementación falló después de 3 intentos'
+    })
+    session.issuesSkipped++
+
+    // Limpiar rama fallida
+    await Bash('git checkout master && git branch -D ' + branchName)
+
+    // Continuar con siguiente issue
+    continue
+
+  } else {
+    // ESTRATEGIA 3: Preguntar al usuario (modo no autónomo)
+    const answer = await AskUserQuestion({
+      questions: [{
+        question: "La implementación falló 3 veces. ¿Qué quieres hacer?",
+        header: "Fallo",
+        multiSelect: false,
+        options: [
+          {
+            label: "Convertir a Epic",
+            description: "Crear proyecto con sub-issues manejables (recomendado para issues complejos)"
+          },
+          {
+            label: "Implementar manualmente",
+            description: "Tú implementas manualmente el issue"
+          },
+          {
+            label: "Saltar issue",
+            description: "Omitir este issue y continuar con el siguiente"
+          },
+          {
+            label: "Abortar workflow",
+            description: "Cancelar el workflow completo"
+          }
+        ]
+      }]
+    })
+
+    if (answer === "Convertir a Epic") {
+      // Invocar epic-breakdown
+      await Skill('github:epic-breakdown', issue.number.toString())
+      continue
+    } else if (answer === "Implementar manualmente") {
+      console.log(`\n📝 Implementa manualmente el issue y luego ejecuta:`)
+      console.log(`   /github:pr`)
+      console.log(`   /quality:review`)
+      console.log(`   /github:merge`)
+      return  // Salir del workflow
+    } else if (answer === "Saltar issue") {
+      session.issuesSaltados.push({...})
+      continue
+    } else {
+      // Abortar
+      await Bash('git checkout master')
+      return  // Salir del workflow
+    }
+  }
+}
+```
+
+**Output esperado**:
+- **Éxito**: Cambios implementados, commits realizados, rama actualizada → Continuar a PASO 3
+- **Fallo (modo autónomo)**: Epic creado con sub-issues → Continuar a PASO 1 con siguiente issue
+- **Fallo (modo manual)**: Usuario decide qué hacer
 
 ---
 
@@ -348,9 +556,11 @@ session = {
   prsMergeados: 0,
   reviewsAprobados: 0,
   reviewsRechazados: 0,
+  issuesSkipped: 0,          // Issues saltados
+  issuesConvertedToEpic: 0,  // Issues convertidos a Epic
 
   // Estado
-  issuenActual: null,
+  issueActual: null,
   tiempoInicio: Date.now(),
 
   // Configuración de bucle
@@ -359,8 +569,21 @@ session = {
   projectNumber: null,       // null = todos los issues, o número de proyecto si se especificó --project
   shouldContinue: true,      // false si usuario pide detener
 
+  // Configuración de autonomía (Fase 1-7)
+  autonomousMode: false,     // true si se ejecutó con --autonomous
+  autoSelect: false,         // true si se ejecutó con --auto-select o --autonomous
+  autoClassifyStrategy: 'ask', // 'ask', 'skip', 'fullstack', 'analyze-files'
+  autoFixReviews: 0,         // Ciclos de auto-corrección (0 = deshabilitado, 2 = default con --autonomous)
+  skipOnFailure: false,      // true = saltar issues fallidos, false = preguntar
+  autoResolveConflicts: false, // true = intentar resolver conflictos automáticamente
+  saveSession: false,        // true = guardar sesión para resume
+  timeoutPerIssue: 10,       // Timeout en minutos por issue
+  maxConsecutiveFailures: 3, // Circuit breaker
+
   // Lista de issues completados (para resumen final)
-  issuesCompletados: []      // [{number, title, pr, time}]
+  issuesCompletados: [],     // [{number, title, pr, time}]
+  issuesSaltados: [],        // [{number, title, reason}]
+  issuesConvertidosEpic: []  // [{number, projectNumber, subIssues}]
 }
 ```
 
@@ -368,6 +591,19 @@ session = {
 - Si contiene "--loop" → `session.loopMode = true`
 - Si contiene "--max=N" → `session.maxIssues = N`
 - Si contiene "--project=N" → `session.projectNumber = N`
+- Si contiene "--autonomous" → habilitar todos los modos autónomos:
+  ```javascript
+  session.autonomousMode = true
+  session.autoSelect = true
+  session.autoClassifyStrategy = 'analyze-files'
+  session.autoFixReviews = 2
+  session.skipOnFailure = true  // Nota: con epic-breakdown, no se pierden issues
+  session.autoResolveConflicts = true
+  session.saveSession = true
+  session.timeoutPerIssue = 10
+  session.maxConsecutiveFailures = 3
+  ```
+- Si contiene "--auto-select" → `session.autoSelect = true`
 
 ---
 
