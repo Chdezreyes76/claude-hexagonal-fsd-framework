@@ -1,0 +1,15 @@
+#!/bin/bash
+# {{projectName}} - Docker Development Environment
+# Stop script for Linux/Mac
+
+echo "🛑 Stopping {{projectName}} development environment..."
+echo ""
+
+# Stop containers
+docker-compose -f docker-compose.dev.yml down
+
+echo ""
+echo "✅ Development environment stopped."
+echo ""
+echo "💡 Tip: To remove volumes (database data), use:"
+echo "   docker-compose -f docker-compose.dev.yml down -v"

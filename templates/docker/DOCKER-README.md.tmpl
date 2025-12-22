@@ -1,0 +1,263 @@
+# 🐳 Docker Development Environment
+
+Docker setup for {{projectName}} with hot reload and data persistence.
+
+## 📋 Prerequisites
+
+- Docker Desktop installed and running
+- Docker Compose v2.0+ (included with Docker Desktop)
+
+## 🚀 Quick Start
+
+### 1. Configure Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your credentials
+# DB_PASSWORD=your_secure_password
+```
+
+### 2. Start Development Environment
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/docker-start.sh
+./scripts/docker-start.sh
+```
+
+**Windows:**
+```cmd
+scripts\docker-start.bat
+```
+
+**Or manually:**
+```bash
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+### 3. Access Services
+
+- **Frontend**: http://localhost:{{stack.frontend.port}}
+- **Backend**: http://localhost:{{stack.backend.port}}
+- **API Docs**: http://localhost:{{stack.backend.port}}/docs
+{{#if_not_sqlite}}
+- **Database**: localhost:{{stack.database.port}}
+{{/if_not_sqlite}}
+
+## 🛠️ Common Commands
+
+### View Logs
+```bash
+# All services
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Specific service
+docker-compose -f docker-compose.dev.yml logs -f backend
+docker-compose -f docker-compose.dev.yml logs -f frontend
+{{#if_not_sqlite}}
+docker-compose -f docker-compose.dev.yml logs -f database
+{{/if_not_sqlite}}
+```
+
+### Restart Services
+```bash
+# Restart all
+docker-compose -f docker-compose.dev.yml restart
+
+# Restart specific service
+docker-compose -f docker-compose.dev.yml restart backend
+```
+
+### Stop Environment
+```bash
+# Linux/Mac
+./scripts/docker-stop.sh
+
+# Windows
+scripts\docker-stop.bat
+
+# Or manually
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Access Container Shell
+```bash
+# Backend
+docker exec -it {{projectNameKebab}}-backend-dev bash
+
+# Frontend
+docker exec -it {{projectNameKebab}}-frontend-dev sh
+
+{{#if_not_sqlite}}
+# Database
+{{#if_mysql}}
+docker exec -it {{projectNameKebab}}-db-dev mysql -u{{stack.database.user}} -p
+{{/if_mysql}}
+{{#if_postgresql}}
+docker exec -it {{projectNameKebab}}-db-dev psql -U {{stack.database.user}} -d {{stack.database.name}}
+{{/if_postgresql}}
+{{/if_not_sqlite}}
+```
+
+## 🔄 Hot Reload
+
+Both backend and frontend support hot reload:
+
+- **Backend**: Uvicorn watches for Python file changes
+- **Frontend**: Vite HMR updates instantly in browser
+
+Simply edit files in `backend/` or `frontend/` and see changes immediately.
+
+## 💾 Data Persistence
+
+### Code (Bind Mounts)
+Your code is mounted directly, so changes persist automatically:
+- `./backend` → `/app` (backend container)
+- `./frontend` → `/app` (frontend container)
+
+### Dependencies (Named Volumes)
+Dependencies are stored in Docker volumes for better performance:
+- `backend-venv` - Python virtual environment
+- `frontend-node-modules` - NPM packages
+
+### Database (Named Volume)
+{{#if_sqlite}}
+Database file is stored in: `./backend/{{stack.database.name}}.db`
+{{/if_sqlite}}
+{{#if_not_sqlite}}
+Database data is persisted in volume: `{{projectNameKebab}}-db-data`
+{{/if_not_sqlite}}
+
+## 🗄️ Database Management
+
+{{#if_mysql}}
+### MySQL
+
+**Connect from host:**
+```bash
+mysql -h127.0.0.1 -P{{stack.database.port}} -u{{stack.database.user}} -p
+```
+
+**Run migrations:**
+```bash
+docker exec -it {{projectNameKebab}}-backend-dev alembic upgrade head
+```
+{{/if_mysql}}
+
+{{#if_postgresql}}
+### PostgreSQL
+
+**Connect from host:**
+```bash
+psql -h localhost -p {{stack.database.port}} -U {{stack.database.user}} -d {{stack.database.name}}
+```
+
+**Run migrations:**
+```bash
+docker exec -it {{projectNameKebab}}-backend-dev alembic upgrade head
+```
+{{/if_postgresql}}
+
+{{#if_sqlserver}}
+### SQL Server
+
+**Connect from host:**
+```bash
+sqlcmd -S localhost,{{stack.database.port}} -U sa -P <password>
+```
+
+**Run migrations:**
+```bash
+docker exec -it {{projectNameKebab}}-backend-dev alembic upgrade head
+```
+{{/if_sqlserver}}
+
+{{#if_sqlite}}
+### SQLite
+
+Database file location: `backend/{{stack.database.name}}.db`
+
+**Run migrations:**
+```bash
+docker exec -it {{projectNameKebab}}-backend-dev alembic upgrade head
+```
+{{/if_sqlite}}
+
+## 🔧 Troubleshooting
+
+### Containers won't start
+```bash
+# Check Docker is running
+docker info
+
+# View detailed logs
+docker-compose -f docker-compose.dev.yml logs
+
+# Rebuild containers
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+### Port already in use
+```bash
+# Check what's using the port
+{{#if_mysql}}
+lsof -i :{{stack.database.port}}  # Database
+{{/if_mysql}}
+lsof -i :{{stack.backend.port}}   # Backend
+lsof -i :{{stack.frontend.port}}  # Frontend
+
+# Stop the conflicting process or change ports in docker-compose.dev.yml
+```
+
+### Permission issues
+```bash
+# Linux: Fix file permissions
+sudo chown -R $USER:$USER backend/ frontend/
+```
+
+### Database connection fails
+```bash
+# Check database is healthy
+docker-compose -f docker-compose.dev.yml ps
+
+# Wait for database initialization (first run takes longer)
+docker-compose -f docker-compose.dev.yml logs -f database
+```
+
+### Frontend HMR not working
+```bash
+# Restart frontend container
+docker-compose -f docker-compose.dev.yml restart frontend
+
+# Check Vite config has host: '0.0.0.0'
+```
+
+## 🧹 Cleanup
+
+### Remove containers and networks
+```bash
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Remove containers, networks, AND volumes (⚠️ deletes database data)
+```bash
+docker-compose -f docker-compose.dev.yml down -v
+```
+
+### Remove everything including images
+```bash
+docker-compose -f docker-compose.dev.yml down -v --rmi all
+```
+
+## 📚 Additional Resources
+
+- [Docker Documentation](https://docs.docker.com/)
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [FastAPI in Docker](https://fastapi.tiangolo.com/deployment/docker/)
+- [Vite Docker Setup](https://vitejs.dev/guide/static-deploy.html)
+
+---
+
+**Generated by Claude Hexagonal+FSD Framework**

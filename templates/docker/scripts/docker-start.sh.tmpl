@@ -1,0 +1,67 @@
+#!/bin/bash
+# {{projectName}} - Docker Development Environment
+# Start script for Linux/Mac
+
+echo "🐳 Starting {{projectName}} development environment..."
+echo ""
+
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not running. Please start Docker Desktop first."
+    exit 1
+fi
+
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "⚠️  No .env file found. Creating from .env.example..."
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+        echo "✅ .env file created. Please edit it with your credentials."
+    else
+        echo "❌ .env.example not found. Please create a .env file manually."
+        exit 1
+    fi
+fi
+
+# Start containers
+echo "Starting containers..."
+docker-compose -f docker-compose.dev.yml up -d
+
+# Wait for services to be ready
+echo ""
+echo "⏳ Waiting for services to start..."
+sleep 5
+
+# Check if all containers are running
+BACKEND_STATUS=$(docker inspect -f \{{.State.Running}} {{projectNameKebab}}-backend-dev 2>/dev/null || echo "false")
+FRONTEND_STATUS=$(docker inspect -f \{{.State.Running}} {{projectNameKebab}}-frontend-dev 2>/dev/null || echo "false")
+{{#if_not_sqlite}}
+DB_STATUS=$(docker inspect -f \{{.State.Running}} {{projectNameKebab}}-db-dev 2>/dev/null || echo "false")
+{{/if_not_sqlite}}
+
+echo ""
+echo "📊 Service Status:"
+echo "   Backend:  $([ "$BACKEND_STATUS" = "true" ] && echo "✅ Running" || echo "❌ Stopped")"
+echo "   Frontend: $([ "$FRONTEND_STATUS" = "true" ] && echo "✅ Running" || echo "❌ Stopped")"
+{{#if_not_sqlite}}
+echo "   Database: $([ "$DB_STATUS" = "true" ] && echo "✅ Running" || echo "❌ Stopped")"
+{{/if_not_sqlite}}
+
+echo ""
+echo "🌐 Access URLs:"
+echo "   Frontend:  http://localhost:{{stack.frontend.port}}"
+echo "   Backend:   http://localhost:{{stack.backend.port}}"
+echo "   API Docs:  http://localhost:{{stack.backend.port}}/docs"
+{{#if_not_sqlite}}
+echo "   Database:  localhost:{{stack.database.port}}"
+{{/if_not_sqlite}}
+
+echo ""
+echo "📋 Useful commands:"
+echo "   View logs:     docker-compose -f docker-compose.dev.yml logs -f"
+echo "   Stop:          docker-compose -f docker-compose.dev.yml down"
+echo "   Restart:       docker-compose -f docker-compose.dev.yml restart"
+echo "   Shell backend: docker exec -it {{projectNameKebab}}-backend-dev bash"
+echo "   Shell frontend:docker exec -it {{projectNameKebab}}-frontend-dev sh"
+echo ""
+echo "✅ Development environment is ready!"

@@ -1,0 +1,19 @@
+@echo off
+REM {{projectName}} - Docker Development Environment
+REM Stop script for Windows
+
+echo.
+echo ======================================
+echo  Stopping {{projectName}} Dev Environment
+echo ======================================
+echo.
+
+docker-compose -f docker-compose.dev.yml down
+
+echo.
+echo [SUCCESS] Development environment stopped.
+echo.
+echo [TIP] To remove volumes (database data), use:
+echo    docker-compose -f docker-compose.dev.yml down -v
+echo.
+pause

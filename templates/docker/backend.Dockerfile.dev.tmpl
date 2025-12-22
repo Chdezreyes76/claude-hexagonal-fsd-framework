@@ -1,0 +1,37 @@
+# Backend Development Dockerfile
+# Python {{stack.backend.version}} with FastAPI
+# Hot reload enabled for development
+
+FROM python:{{stack.backend.version}}-slim
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    default-libmysqlclient-dev \
+    postgresql-client \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+# Expose port
+EXPOSE {{stack.backend.port}}
+
+# Development command with hot reload
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "{{stack.backend.port}}", "--reload", "--reload-dir", "/app"]

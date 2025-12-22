@@ -1,0 +1,72 @@
+@echo off
+REM {{projectName}} - Docker Development Environment
+REM Start script for Windows
+
+echo.
+echo ======================================
+echo  Starting {{projectName}} Dev Environment
+echo ======================================
+echo.
+
+REM Check if Docker is running
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Docker is not running. Please start Docker Desktop first.
+    pause
+    exit /b 1
+)
+
+REM Check if .env file exists
+if not exist ".env" (
+    echo [WARNING] No .env file found.
+    if exist ".env.example" (
+        echo Creating .env from .env.example...
+        copy .env.example .env >nul
+        echo [SUCCESS] .env file created. Please edit it with your credentials.
+    ) else (
+        echo [ERROR] .env.example not found. Please create a .env file manually.
+        pause
+        exit /b 1
+    )
+)
+
+REM Start containers
+echo Starting containers...
+docker-compose -f docker-compose.dev.yml up -d
+
+REM Wait for services
+echo.
+echo Waiting for services to start...
+timeout /t 5 /nobreak >nul
+
+REM Check container status
+echo.
+echo ======================================
+echo  Service Status
+echo ======================================
+docker ps --filter "name={{projectNameKebab}}" --format "table \{{.Names}}\t\{{.Status}}"
+
+echo.
+echo ======================================
+echo  Access URLs
+echo ======================================
+echo   Frontend:  http://localhost:{{stack.frontend.port}}
+echo   Backend:   http://localhost:{{stack.backend.port}}
+echo   API Docs:  http://localhost:{{stack.backend.port}}/docs
+{{#if_not_sqlite}}
+echo   Database:  localhost:{{stack.database.port}}
+{{/if_not_sqlite}}
+
+echo.
+echo ======================================
+echo  Useful Commands
+echo ======================================
+echo   View logs:      docker-compose -f docker-compose.dev.yml logs -f
+echo   Stop:           docker-compose -f docker-compose.dev.yml down
+echo   Restart:        docker-compose -f docker-compose.dev.yml restart
+echo   Shell backend:  docker exec -it {{projectNameKebab}}-backend-dev bash
+echo   Shell frontend: docker exec -it {{projectNameKebab}}-frontend-dev sh
+echo.
+echo [SUCCESS] Development environment is ready!
+echo.
+pause
