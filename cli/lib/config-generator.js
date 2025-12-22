@@ -10,13 +10,24 @@ async function generateConfig(answers, frameworkRoot) {
   const defaultsPath = path.join(frameworkRoot, 'config', 'defaults.json');
   const defaults = await fs.readJson(defaultsPath);
 
+  // Leer versión del framework desde CLI package.json
+  const cliPackagePath = path.join(frameworkRoot, 'cli', 'package.json');
+  let frameworkVersion = defaults.version; // Fallback
+  try {
+    const cliPackage = await fs.readJson(cliPackagePath);
+    frameworkVersion = cliPackage.version;
+  } catch (error) {
+    // Si no se puede leer, usar defaults como fallback
+    console.warn('Warning: Could not read CLI package.json, using default version');
+  }
+
   // Generar variantes de nombres
   const projectNaming = generateNamingVariants(answers.projectName);
 
   // Construir configuración completa
   const config = {
     version: defaults.version,
-    frameworkVersion: defaults.version,
+    frameworkVersion: frameworkVersion,
     lastUpdated: new Date().toISOString(),
 
     project: {
