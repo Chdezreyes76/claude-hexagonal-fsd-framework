@@ -3,6 +3,7 @@
 const path = require('path');
 const chalk = require('chalk');
 const { initWizard } = require('./lib/init');
+const { updateFramework } = require('./lib/update');
 
 /**
  * CLI Entry Point
@@ -34,10 +35,21 @@ async function main() {
     }
 
     case 'update': {
-      console.log(chalk.yellow('\nUpdate command coming soon...\n'));
-      console.log(chalk.gray('This will update an existing .claude directory with the latest framework version.'));
-      console.log(chalk.gray('Your claude.config.json will be preserved.\n'));
-      process.exit(0);
+      // Obtener el path del proyecto destino
+      let targetPath = args[1] || process.cwd();
+
+      // Resolver path absoluto
+      targetPath = path.resolve(targetPath);
+
+      // Opciones
+      const options = {
+        verbose: args.includes('--verbose') || args.includes('-v'),
+        dryRun: args.includes('--dry-run'),
+        skipBackup: args.includes('--skip-backup')
+      };
+
+      // Ejecutar update
+      await updateFramework(targetPath, options);
       break;
     }
 
@@ -84,7 +96,8 @@ function showHelp() {
   console.log(chalk.white('                     Example: node index.js init ../my-project\n'));
 
   console.log(chalk.white('  update [path]      Update existing framework installation'));
-  console.log(chalk.white('                     (Coming soon)\n'));
+  console.log(chalk.white('                     Default path: current directory'));
+  console.log(chalk.white('                     Example: node index.js update ../my-project\n'));
 
   console.log(chalk.white('  validate [path]    Validate claude.config.json'));
   console.log(chalk.white('                     (Coming soon)\n'));
@@ -93,7 +106,9 @@ function showHelp() {
   console.log(chalk.white('  help               Show this help message\n'));
 
   console.log(chalk.yellow('Options:'));
-  console.log(chalk.white('  --verbose, -v      Show detailed output\n'));
+  console.log(chalk.white('  --verbose, -v      Show detailed output'));
+  console.log(chalk.white('  --dry-run          Preview changes without applying (update only)'));
+  console.log(chalk.white('  --skip-backup      Skip backup creation (update only)\n'));
 
   console.log(chalk.yellow('Examples:'));
   console.log(chalk.gray('  # Initialize in current directory'));
@@ -105,6 +120,12 @@ function showHelp() {
   console.log(chalk.gray('  # Initialize with verbose output'));
   console.log(chalk.white('  node index.js init --verbose\n'));
 
+  console.log(chalk.gray('  # Update existing project'));
+  console.log(chalk.white('  node index.js update /path/to/my-project\n'));
+
+  console.log(chalk.gray('  # Preview update without applying changes'));
+  console.log(chalk.white('  node index.js update --dry-run\n'));
+
   console.log(chalk.yellow('Framework Features:'));
   console.log(chalk.white('  • 11 specialized skills (hexagonal, FSD, implementers, QA, etc.)'));
   console.log(chalk.white('  • 20+ commands (GitHub, scaffold, quality, workflows)'));
@@ -114,7 +135,7 @@ function showHelp() {
   console.log(chalk.white('  • Automated issue workflows\n'));
 
   console.log(chalk.gray('For more information:'));
-  console.log(chalk.gray('  https://github.com/yourorg/claude-hexagonal-fsd-framework\n'));
+  console.log(chalk.gray('  https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework\n'));
 }
 
 // Ejecutar CLI

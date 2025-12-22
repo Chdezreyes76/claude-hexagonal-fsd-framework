@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-22
+
+### Added
+- **CLI Update Command**: Fully functional `update` command for updating existing framework installations
+  - `node index.js update [path]` - Update framework in existing project
+  - Automatic backup creation (with `--skip-backup` option)
+  - Dry run mode (`--dry-run`) to preview changes
+  - Preserves existing `claude.config.json` configuration
+  - Shows changelog between versions
+  - Validates configuration after update
+  - New module: `cli/lib/update.js` (220 lines)
+
+- **QA Review Command**: New `/qa:review-done` command for automated QA review
+  - Execute skill directly: `/qa:review-done <project-number>`
+  - Verifies all issues in "Done" column
+  - Runs TypeScript compilation checks
+  - Opens browser and checks for console errors
+  - Takes screenshots as evidence
+  - Moves approved issues to "Reviewed"
+  - Generates detailed QA report
+  - Sends email summary to user
+  - New file: `core/commands/qa/review-done.md` (complete documentation)
+
+### Fixed
+- **Email Configuration**: Parametrized hardcoded email address in `qa-review-done` skill
+  - Changed `qa-bot@gextiona.com` to `qa-bot@{{projectNameKebab}}.com`
+  - Ensures proper parametrization across all configurations
+- **CLI Help URL**: Corrected repository URL in help text from `yourorg` to `Chdezreyes76`
+
+### Changed
+- **CLI Help**: Updated help text with update command examples and options
+  - Added `--dry-run` and `--skip-backup` options documentation
+  - Added update command usage examples
+  - Improved command descriptions
+
+### Developer Experience
+- Projects can now be easily updated to latest framework version
+- No manual file copying or configuration editing required
+- Safe updates with automatic backups
+- Preview changes before applying
+
 ## [1.0.1] - 2025-12-22
 
 ### Fixed
@@ -148,5 +189,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready for production use in hexagonal architecture + FSD projects
 - Fully parametrized with zero hard-coded references
 
+[1.0.2]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/releases/tag/v1.0.0
