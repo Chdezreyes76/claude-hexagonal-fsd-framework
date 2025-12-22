@@ -190,6 +190,98 @@ async function validateProjectStructure(projectRoot, config) {
 }
 
 /**
+ * Valida un proyecto existente antes de instalar el framework
+ */
+async function validateExistingProject(projectRoot, detection) {
+  const errors = [];
+  const warnings = [];
+
+  // 1. Debe tener al menos backend O frontend
+  if (!detection.backend.exists && !detection.frontend.exists) {
+    errors.push({
+      path: 'project',
+      message: 'No backend or frontend directory found. This appears to be an empty project.',
+      suggestion: 'Create backend/ and/or frontend/ directories first, or use "New Project" mode.'
+    });
+  }
+
+  // 2. Si seleccionó "existing" pero está vacío, advertir
+  if (!detection.isExistingProject) {
+    warnings.push({
+      path: 'project',
+      message: 'No existing project structure detected.',
+      suggestion: 'Consider using "New Project" mode instead for better scaffolding support.'
+    });
+  }
+
+  // 3. Verificar si ya existe .claude/ (no debería, pero validar)
+  if (detection.frameworkInstalled) {
+    warnings.push({
+      path: '.claude',
+      message: `Framework already installed (version ${detection.frameworkVersion}).`,
+      suggestion: 'Continuing will overwrite existing .claude/ directory.'
+    });
+  }
+
+  // 4. Si no es un repositorio Git, advertir
+  if (!detection.git.isGitRepo) {
+    warnings.push({
+      path: 'git',
+      message: 'Not a git repository.',
+      suggestion: 'GitHub workflow commands will not work. Run "git init" to initialize a repository.'
+    });
+  }
+
+  // 5. Si tiene backend pero no tiene requirements.txt o package manager, advertir
+  if (detection.backend.exists) {
+    const requirementsTxt = require('path').join(projectRoot, detection.backend.dirName, 'requirements.txt');
+    const pipfilePath = require('path').join(projectRoot, detection.backend.dirName, 'Pipfile');
+    const poetryPath = require('path').join(projectRoot, detection.backend.dirName, 'pyproject.toml');
+
+    const hasRequirements = await require('fs-extra').pathExists(requirementsTxt);
+    const hasPipfile = await require('fs-extra').pathExists(pipfilePath);
+    const hasPoetry = await require('fs-extra').pathExists(poetryPath);
+
+    if (!hasRequirements && !hasPipfile && !hasPoetry) {
+      warnings.push({
+        path: 'backend/dependencies',
+        message: 'No Python dependency file found (requirements.txt, Pipfile, or pyproject.toml).',
+        suggestion: 'Some framework commands may need dependency management files.'
+      });
+    }
+  }
+
+  // 6. Si tiene frontend pero no tiene package.json, advertir
+  if (detection.frontend.exists) {
+    const packageJsonPath = require('path').join(projectRoot, detection.frontend.dirName, 'package.json');
+    const hasPackageJson = await require('fs-extra').pathExists(packageJsonPath);
+
+    if (!hasPackageJson) {
+      warnings.push({
+        path: 'frontend/dependencies',
+        message: 'No package.json found in frontend directory.',
+        suggestion: 'Some framework commands may need npm/yarn configuration.'
+      });
+    }
+  }
+
+  // 7. Si no tiene base de datos configurada, informar
+  if (!detection.database.type) {
+    warnings.push({
+      path: 'database',
+      message: 'Could not detect database configuration.',
+      suggestion: 'You will need to configure database settings manually.'
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
+/**
  * Formatea errores de validación para mostrar al usuario
  */
 function formatValidationErrors(errors) {
@@ -205,9 +297,27 @@ function formatValidationErrors(errors) {
   }).join('\n');
 }
 
+/**
+ * Formatea warnings de validación para mostrar al usuario
+ */
+function formatValidationWarnings(warnings) {
+  if (!warnings || warnings.length === 0) {
+    return '';
+  }
+
+  return warnings.map(warn => {
+    const path = warn.path || 'unknown';
+    const message = warn.message || 'Unknown warning';
+    const suggestion = warn.suggestion ? `\n      → ${warn.suggestion}` : '';
+    return `  ⚠  ${path}: ${message}${suggestion}`;
+  }).join('\n\n');
+}
+
 module.exports = {
   validateConfig,
   validateBusinessRules,
   validateProjectStructure,
-  formatValidationErrors
+  validateExistingProject,
+  formatValidationErrors,
+  formatValidationWarnings
 };

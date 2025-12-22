@@ -5,7 +5,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { generateConfig, generateTemplateVariables } = require('./config-generator');
 const { processTemplateDirectory } = require('./template-processor');
-const { validateConfig, validateProjectStructure, formatValidationErrors } = require('./validator');
+const { validateConfig, validateProjectStructure, formatValidationErrors, validateExistingProject, formatValidationWarnings } = require('./validator');
 const { isValidEmail, isValidPort } = require('./utils');
 const { detectProjectStructure, generateDetectionSummary } = require('./project-detector');
 
@@ -117,6 +117,61 @@ async function initWizard(targetProjectPath, options = {}) {
 
     const isNewProject = projectTypeChoice.projectType === 'new';
     console.log(chalk.gray(`\nMode: ${isNewProject ? 'New Project' : 'Existing Project'}\n`));
+
+    // Validar proyectos existentes
+    if (!isNewProject) {
+      console.log(chalk.yellow('Validating existing project structure...\n'));
+
+      const validation = await validateExistingProject(targetProjectPath, detection);
+
+      // Mostrar errores críticos
+      if (!validation.valid) {
+        console.log(chalk.red('❌ Validation failed:\n'));
+        console.log(chalk.red(formatValidationErrors(validation.errors)));
+        console.log('');
+
+        const continueAnyway = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'continue',
+            message: 'Continue anyway?',
+            default: false
+          }
+        ]);
+
+        if (!continueAnyway.continue) {
+          console.log(chalk.gray('\nSetup cancelled.\n'));
+          process.exit(0);
+        }
+
+        console.log(chalk.yellow('\n⚠️  Proceeding with invalid project structure.\n'));
+      }
+
+      // Mostrar warnings
+      if (validation.warnings.length > 0) {
+        console.log(chalk.yellow('⚠️  Warnings:\n'));
+        console.log(chalk.yellow(formatValidationWarnings(validation.warnings)));
+        console.log('');
+
+        const acknowledgeWarnings = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'acknowledge',
+            message: 'Continue with these warnings?',
+            default: true
+          }
+        ]);
+
+        if (!acknowledgeWarnings.acknowledge) {
+          console.log(chalk.gray('\nSetup cancelled.\n'));
+          process.exit(0);
+        }
+
+        console.log('');
+      } else {
+        console.log(chalk.green('✓ Project structure validated\n'));
+      }
+    }
 
     // Paso 1: Información del proyecto
     console.log(chalk.yellow.bold('\n📋 Project Information\n'));
