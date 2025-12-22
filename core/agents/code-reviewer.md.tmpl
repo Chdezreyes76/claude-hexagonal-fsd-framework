@@ -100,6 +100,112 @@ Cuando te invoquen, debes:
 - Sugerencias de mejora
 ```
 
+6. **Generar Output Estructurado** (Nuevo - Fase 4):
+
+Al final del reporte, incluir un bloque JSON para auto-corrección:
+
+```json
+{
+  "status": "APPROVED" | "REJECTED" | "APPROVED_WITH_WARNINGS",
+  "severity": "CRITICAL" | "MINOR" | "NONE",
+  "issues": [
+    {
+      "file": "backend/application/use_cases/usuario/crear_usuario_use_case.py",
+      "line": 42,
+      "severity": "CRITICAL",
+      "category": "architecture_violation",
+      "title": "Use case accede directamente a Repository",
+      "problem": "El use case importa y usa UsuarioRepository directamente en lugar de usar el port UsuarioRepositoryPort",
+      "suggestion": "Inyecta UsuarioRepositoryPort en el constructor y úsalo en lugar del repository concreto",
+      "code_suggestion": "def __init__(self, repository: UsuarioRepositoryPort):\n    self.repository = repository",
+      "actionable": true
+    },
+    {
+      "file": "frontend/src/features/usuarios/hooks/useUsuarios.ts",
+      "line": 15,
+      "severity": "MINOR",
+      "category": "code_quality",
+      "title": "Query key hardcoded",
+      "problem": "Query key 'usuarios' está hardcoded en lugar de usar constante",
+      "suggestion": "Define QUERY_KEYS.USUARIOS = 'usuarios' en entities/usuario/model/constants.ts",
+      "code_suggestion": "const QUERY_KEYS = {\n  USUARIOS: 'usuarios'\n}",
+      "actionable": true
+    }
+  ],
+  "criticalCount": 1,
+  "minorCount": 1,
+  "totalIssues": 2,
+  "filesReviewed": 5,
+  "autoFixable": true,
+  "feedback": "Se encontraron problemas críticos de arquitectura. El use case debe usar ports en lugar de repositories concretos. Los problemas menores son de calidad de código y pueden mejorarse.",
+  "nextSteps": [
+    "Refactorizar CrearUsuarioUseCase para inyectar UsuarioRepositoryPort",
+    "Mover query keys hardcoded a constantes en entities"
+  ]
+}
+```
+
+### Criterios de Status
+
+| Status | Condición |
+|--------|-----------|
+| **APPROVED** | 0 issues críticos, 0 issues menores |
+| **APPROVED_WITH_WARNINGS** | 0 issues críticos, pero hay issues menores |
+| **REJECTED** | 1+ issues críticos |
+
+### Criterios de Severity
+
+| Severity | Condición |
+|----------|-----------|
+| **CRITICAL** | Hay issues con severity="CRITICAL" |
+| **MINOR** | Solo issues con severity="MINOR" |
+| **NONE** | Sin issues |
+
+### Categorías de Issues
+
+| Categoría | Descripción |
+|-----------|-------------|
+| `architecture_violation` | Violación de hexagonal o FSD |
+| `security` | Vulnerabilidades de seguridad |
+| `type_safety` | Problemas de tipado (any, sin tipos) |
+| `error_handling` | Falta de manejo de errores |
+| `code_quality` | Código mejorable (duplicación, nomenclatura) |
+| `performance` | Problemas de rendimiento |
+| `testing` | Falta de tests o tests incorrectos |
+
+### Feedback para Auto-Corrección
+
+El campo `feedback` debe ser específico y accionable:
+
+**✅ BIEN**:
+```
+"El use case CrearUsuarioUseCase accede directamente a UsuarioRepository. Debe inyectar UsuarioRepositoryPort y usarlo en su lugar. Ver línea 42."
+```
+
+**❌ MAL**:
+```
+"Hay problemas de arquitectura"
+```
+
+El campo `nextSteps` debe listar acciones concretas:
+
+**✅ BIEN**:
+```json
+[
+  "Cambiar import de UsuarioRepository a UsuarioRepositoryPort en crear_usuario_use_case.py:12",
+  "Modificar __init__ para recibir port: UsuarioRepositoryPort en línea 15",
+  "Actualizar self.repository.create(usuario) para usar el port en línea 42"
+]
+```
+
+**❌ MAL**:
+```json
+[
+  "Arreglar la arquitectura",
+  "Mejorar el código"
+]
+```
+
 ## Criterios de Severidad
 
 | Severidad | Descripcion |

@@ -347,9 +347,29 @@ Esto ejecuta el agente `code-reviewer` que valida:
 - ✅ No duplicación de código
 - ✅ Tests agregados (si aplica)
 
-**Resultado**: APROBADO o RECHAZADO
+**Resultado**: APROBADO, APPROVED_WITH_WARNINGS o REJECTED
 
-### Si APROBADO:
+### Parsear Output del Code Reviewer (Nuevo - Fase 4)
+
+El code-reviewer retorna JSON estructurado al final del reporte:
+
+```javascript
+// Extraer JSON del output del code-reviewer
+const reviewOutput = await Skill("quality:review")
+const jsonMatch = reviewOutput.match(/\{[\s\S]*"status"[\s\S]*\}/m)
+
+if (jsonMatch) {
+  const reviewResult = JSON.parse(jsonMatch[0])
+
+  console.log(`\n📊 Code Review Result:`)
+  console.log(`   Status: ${reviewResult.status}`)
+  console.log(`   Severity: ${reviewResult.severity}`)
+  console.log(`   Critical Issues: ${reviewResult.criticalCount}`)
+  console.log(`   Minor Issues: ${reviewResult.minorCount}`)
+}
+```
+
+### Si APPROVED:
 ```
 ✅ Code Review: APROBADO
 
@@ -365,25 +385,194 @@ Validaciones pasadas:
 
 **Continuar a PASO 5**
 
-### Si RECHAZADO:
+### Si APPROVED_WITH_WARNINGS:
 ```
-❌ Code Review: RECHAZADO
+✅ Code Review: APROBADO CON WARNINGS
 
-Problemas encontrados:
-  ✗ TypeScript error en línea 42: unused variable
-  ✗ FSD violation: import desde @/services en pages/
-  ✗ Missing test para nueva funcionalidad
+Issues menores detectados:
+  ⚠️ Query key hardcoded en línea 15
+  ⚠️ Falta documentación en función auxiliar
 
-¿Qué quieres hacer?
-  1. "arreglar" → Volver a implementar y re-revisar
-  2. "salir"   → Cancelar workflow
-  3. "forzar"  → Mergear de todas formas (NO RECOMENDADO)
+✅ Sin issues críticos - OK para mergear
+
+→ Continuando a mergear...
 ```
 
-**Usar AskUserQuestion** para decidir:
-- Si "arreglar": Volver a PASO 2
-- Si "salir": Cancelar workflow, volver a master
-- Si "forzar": Mostrar warning y continuar a PASO 5
+**Continuar a PASO 5** (los warnings no bloquean el merge)
+
+### Si REJECTED - Ciclos de Auto-Corrección (Nuevo - Fase 4):
+
+En modo autónomo, reintentar automáticamente con feedback del review:
+
+```javascript
+// Parsear resultado del review
+const reviewResult = JSON.parse(jsonMatch[0])
+
+if (reviewResult.status === 'REJECTED') {
+  console.log(`\n❌ Code Review: RECHAZADO`)
+  console.log(`   ${reviewResult.criticalCount} issues críticos encontrados`)
+  console.log(`\n📝 Feedback: ${reviewResult.feedback}`)
+
+  // Mostrar próximos pasos
+  console.log(`\n🔧 Próximos pasos:`)
+  reviewResult.nextSteps.forEach((step, idx) => {
+    console.log(`   ${idx + 1}. ${step}`)
+  })
+
+  // Decidir qué hacer según configuración
+  if (session.autonomousMode && session.autoFixReviews > 0) {
+    // MODO AUTÓNOMO: Auto-corrección con ciclos limitados
+
+    let fixCycle = 0
+    const maxFixCycles = session.autoFixReviews  // Default: 2
+
+    while (fixCycle < maxFixCycles) {
+      fixCycle++
+
+      console.log(`\n🔄 Auto-Corrección: Ciclo ${fixCycle}/${maxFixCycles}`)
+      console.log(`   Reintentando implementación con feedback del review...`)
+
+      // Reintentar implementación con el feedback
+      const fixPrompt = `
+Corrige los problemas encontrados en el code review anterior.
+
+FEEDBACK DEL REVIEW:
+${reviewResult.feedback}
+
+PROBLEMAS CRÍTICOS A CORREGIR:
+${reviewResult.issues
+  .filter(i => i.severity === 'CRITICAL')
+  .map((issue, idx) => `
+${idx + 1}. ${issue.title} (${issue.file}:${issue.line})
+   Problema: ${issue.problem}
+   Solución: ${issue.suggestion}
+   ${issue.code_suggestion ? `Código sugerido:\n   ${issue.code_suggestion}` : ''}
+`).join('\n')}
+
+PASOS A SEGUIR:
+${reviewResult.nextSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}
+
+Implementa las correcciones necesarias y haz commit de los cambios.
+`
+
+      // Invocar implementador con el feedback
+      await implementer.fix(fixPrompt)
+
+      // Volver a ejecutar code review
+      console.log(`\n🔍 Re-ejecutando code review...`)
+      const newReviewOutput = await Skill("quality:review")
+      const newJsonMatch = newReviewOutput.match(/\{[\s\S]*"status"[\s\S]*\}/m)
+
+      if (newJsonMatch) {
+        const newReviewResult = JSON.parse(newJsonMatch[0])
+
+        if (newReviewResult.status === 'APPROVED' || newReviewResult.status === 'APPROVED_WITH_WARNINGS') {
+          console.log(`\n✅ Auto-Corrección exitosa en ciclo ${fixCycle}`)
+          console.log(`   Status: ${newReviewResult.status}`)
+
+          // Actualizar reviewResult para continuar
+          reviewResult = newReviewResult
+          break  // Salir del loop, continuar a PASO 5
+        } else {
+          console.log(`\n⚠️ Ciclo ${fixCycle} completado, aún hay ${newReviewResult.criticalCount} issues críticos`)
+          reviewResult = newReviewResult
+
+          if (fixCycle < maxFixCycles) {
+            console.log(`   Reintentando en siguiente ciclo...`)
+          }
+        }
+      }
+    }
+
+    // Después de todos los ciclos
+    if (reviewResult.status === 'REJECTED') {
+      console.log(`\n❌ No se pudo auto-corregir después de ${maxFixCycles} ciclos`)
+      console.log(`   ${reviewResult.criticalCount} issues críticos persisten`)
+
+      // Decidir qué hacer
+      if (session.skipOnFailure) {
+        console.log(`\n⚠️ Saltando issue #${issue.number}`)
+
+        session.issuesSaltados.push({
+          number: issue.number,
+          title: issue.title,
+          reason: `Code review rechazado después de ${maxFixCycles} ciclos de auto-corrección`,
+          reviewResult: reviewResult
+        })
+        session.issuesSkipped++
+
+        // Limpiar rama
+        await Bash('git checkout master && git branch -D ' + branchName)
+
+        // Continuar con siguiente issue
+        continue
+      } else {
+        // Preguntar al usuario (modo no autónomo)
+        askUserWhatToDo()
+      }
+    } else {
+      // Review aprobado después de auto-corrección
+      console.log(`\n✅ Issues corregidos, continuando a mergear...`)
+      // Continuar a PASO 5
+    }
+
+  } else {
+    // MODO NO AUTÓNOMO: Preguntar al usuario
+    console.log(`\n❌ Code Review: RECHAZADO`)
+    console.log(`\nProblemas encontrados:`)
+
+    reviewResult.issues.forEach(issue => {
+      console.log(`  ${issue.severity === 'CRITICAL' ? '✗' : '⚠️'} ${issue.title}`)
+      console.log(`     ${issue.file}:${issue.line}`)
+      console.log(`     ${issue.problem}`)
+    })
+
+    const answer = await AskUserQuestion({
+      questions: [{
+        question: "¿Qué quieres hacer?",
+        header: "Review Fail",
+        multiSelect: false,
+        options: [
+          {
+            label: "Arreglar manualmente",
+            description: "Corrige los problemas y vuelve a ejecutar el review"
+          },
+          {
+            label: "Salir",
+            description: "Cancelar workflow y volver a master"
+          },
+          {
+            label: "Forzar merge",
+            description: "Mergear de todas formas (NO RECOMENDADO)"
+          }
+        ]
+      }]
+    })
+
+    if (answer === "Arreglar manualmente") {
+      console.log(`\n📝 Corrige los problemas manualmente y luego ejecuta:`)
+      console.log(`   git add .`)
+      console.log(`   git commit -m "fix: address code review feedback"`)
+      console.log(`   /quality:review`)
+      console.log(`   /github:merge`)
+      return  // Salir del workflow
+    } else if (answer === "Salir") {
+      await Bash('git checkout master && git branch -D ' + branchName)
+      return  // Salir del workflow
+    } else {
+      // Forzar merge
+      console.log(`\n⚠️ WARNING: Mergeando con issues críticos sin resolver`)
+      console.log(`   Esto NO es recomendado y puede introducir bugs`)
+      // Continuar a PASO 5
+    }
+  }
+}
+```
+
+**Output esperado**:
+- **Auto-corrección exitosa**: Review aprobado después de 1-2 ciclos → Continuar a PASO 5
+- **Auto-corrección fallida**: Saltar issue (modo autónomo) o preguntar (modo manual)
+- **Modo manual**: Usuario decide qué hacer
 
 ---
 
@@ -765,6 +954,143 @@ Usuario: /workflow:issue-complete --loop --max=3 --project=7
 → 3 PRs mergeados
 → 100% calidad
 → FIN
+```
+
+### Ejemplo 5: Modo Autónomo con Auto-Corrección (Nuevo - Fase 4)
+
+```
+Usuario: /workflow:issue-complete --loop --max=3 --autonomous
+
+[Session Iniciada: modo autónomo, máximo 3 issues]
+
+[ISSUE 1/3]
+→ Auto-selecciona #150 [ALTA] Implementar validación de usuarios
+→ Implementa cambios...
+→ PR #240 creado
+
+→ Code Review ejecutándose...
+📊 Code Review Result:
+   Status: REJECTED
+   Severity: CRITICAL
+   Critical Issues: 2
+   Minor Issues: 1
+
+❌ Code Review: RECHAZADO
+   2 issues críticos encontrados
+
+📝 Feedback: El use case CrearUsuarioUseCase accede directamente a UsuarioRepository.
+   Debe inyectar UsuarioRepositoryPort. También falta validación de email duplicado.
+
+🔧 Próximos pasos:
+   1. Cambiar import de UsuarioRepository a UsuarioRepositoryPort
+   2. Modificar __init__ para recibir port en lugar de repository
+   3. Agregar validación de email duplicado antes de crear usuario
+
+🔄 Auto-Corrección: Ciclo 1/2
+   Reintentando implementación con feedback del review...
+
+   → Corrigiendo CrearUsuarioUseCase...
+   → Cambiando Repository por RepositoryPort
+   → Agregando validación de email duplicado
+   → Commit: "fix: use port instead of repository, add email validation"
+
+🔍 Re-ejecutando code review...
+
+📊 Code Review Result:
+   Status: APPROVED_WITH_WARNINGS
+   Severity: MINOR
+   Critical Issues: 0
+   Minor Issues: 1
+
+✅ Auto-Corrección exitosa en ciclo 1
+   Status: APPROVED_WITH_WARNINGS
+
+✅ Code Review: APROBADO CON WARNINGS
+
+Issues menores detectados:
+  ⚠️ Query key hardcoded en línea 15
+
+✅ Sin issues críticos - OK para mergear
+
+→ Merge ✅
+→ "✅ Issue #150 completado (1/3) - Auto-corregido en 1 ciclo"
+
+[ISSUE 2/3]
+→ Auto-selecciona #151 [MEDIA] Refactor authentication hook
+→ Implementa → PR #241 → Review ✅ → Merge ✅
+→ "✅ Issue #151 completado (2/3)"
+
+[ISSUE 3/3]
+→ Auto-selecciona #152 [ALTA] Add user permissions
+→ Implementa cambios...
+→ PR #242 creado
+
+→ Code Review ejecutándose...
+❌ Code Review: RECHAZADO (3 issues críticos)
+
+🔄 Auto-Corrección: Ciclo 1/2
+   → Corrigiendo...
+   → Review: RECHAZADO (2 issues críticos persisten)
+
+🔄 Auto-Corrección: Ciclo 2/2
+   → Corrigiendo...
+   → Review: RECHAZADO (1 issue crítico persiste)
+
+❌ No se pudo auto-corregir después de 2 ciclos
+   1 issues críticos persisten
+
+⚠️ Saltando issue #152
+   Razón: Code review rechazado después de 2 ciclos de auto-corrección
+
+→ Continúa con siguiente issue...
+
+[Mostrar Resumen Final]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SESIÓN COMPLETADA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 ESTADÍSTICAS FINALES:
+  Issues procesados:   3/3 (100%)
+  ├─ ✅ Completados:   2 (67%)
+  ├─ 🔄 Auto-corregidos: 1 (33% de completados)
+  ├─ ⚠️ Saltados:      1 (33%)
+  └─ ❌ Abortados:     0 (0%)
+
+  PRs creados:         3
+  PRs mergeados:       2
+
+  Code reviews:        5 (incluyendo re-reviews)
+  ├─ Aprobados 1er intento: 1 (50%)
+  └─ Auto-corregidos:       1 (50%)
+
+🔄 AUTO-CORRECCIÓN:
+  Ciclos ejecutados:   3 total
+  ├─ Exitosos ciclo 1: 1 issue
+  └─ Fallidos:         1 issue (después de 2 ciclos)
+
+📋 ISSUES COMPLETADOS:
+  1. ✅ #150 [ALTA] Validación usuarios → PR #240 ✅ (auto-corregido)
+  2. ✅ #151 [MEDIA] Refactor auth hook → PR #241 ✅
+
+⚠️ ISSUES SALTADOS (requieren atención manual):
+  1. #152 [ALTA] Add user permissions
+     Razón: Code review rechazado después de 2 ciclos
+     Feedback: "Falta implementar verificación de permisos en capa de dominio"
+     Acción: Revisar manualmente y re-implementar
+
+📈 EFECTIVIDAD AUTO-CORRECCIÓN:
+  - 50% de reviews rechazados fueron corregidos automáticamente
+  - Promedio: 1 ciclo por corrección exitosa
+  - Ahorro de tiempo: ~15 minutos
+
+🎯 PRÓXIMO ISSUE RECOMENDADO:
+  #153 [ALTA] Implementar logout
+
+💡 RECOMENDACIÓN:
+  Issue #152 requiere atención manual. Revisar feedback del code review
+  y considerar dividirlo en sub-issues más pequeños si es muy complejo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
