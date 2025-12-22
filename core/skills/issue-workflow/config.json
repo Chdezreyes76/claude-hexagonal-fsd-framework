@@ -1,6 +1,6 @@
 {
   "name": "issue-workflow",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Orquesta el flujo completo de un issue con implementación automática mediante agentes especializados y pre-code-review",
 
   "automation": {
@@ -12,6 +12,20 @@
     "autoMerge": true,
     "maxRetries": 3,
     "requireTestsPass": true
+  },
+
+  "autonomous": {
+    "enabled": false,
+    "autoSelect": true,
+    "autoClassifyStrategy": "analyze-files",
+    "autoFixReviews": 2,
+    "skipOnFailure": true,
+    "autoResolveConflicts": true,
+    "epicBreakdownOnFailure": true,
+    "saveSession": true,
+    "sessionPath": ".claude/session/",
+    "timeoutPerIssue": 10,
+    "maxConsecutiveFailures": 3
   },
 
   "detection": {

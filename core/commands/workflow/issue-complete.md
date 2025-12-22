@@ -74,6 +74,108 @@ const maxIssues = maxMatch ? parseInt(maxMatch[1]) : null
 // Extraer --project=N
 const projectMatch = $ARGUMENTS.match(/--project=(\d+)/)
 const projectNumber = projectMatch ? parseInt(projectMatch[1]) : null
+
+// Fase 6: Nuevos parámetros de persistencia y circuit breakers
+const saveSessionMatch = $ARGUMENTS.match(/--save-session(?:=(.+))?/)
+const saveSession = saveSessionMatch ? (saveSessionMatch[1] || '.claude/session/workflow-session.json') : (loopMode ? '.claude/session/workflow-session.json' : null)
+
+const resumeMatch = $ARGUMENTS.match(/--resume=(.+)/)
+const resumeSessionPath = resumeMatch ? resumeMatch[1] : null
+
+const timeoutMatch = $ARGUMENTS.match(/--timeout-per-issue=(\d+)/)
+const timeoutPerIssue = timeoutMatch ? parseInt(timeoutMatch[1]) : (autonomousMode ? 10 : null)  // Default: 10 minutos en modo autónomo
+
+const maxFailuresMatch = $ARGUMENTS.match(/--max-consecutive-failures=(\d+)/)
+const maxConsecutiveFailures = maxFailuresMatch ? parseInt(maxFailuresMatch[1]) : (autonomousMode ? 3 : null)  // Default: 3 en modo autónomo
+```
+
+### Inicializar o Reanudar Sesión (Nuevo - Fase 6)
+
+```javascript
+let session
+
+if (resumeSessionPath) {
+  // REANUDAR SESIÓN EXISTENTE
+  console.log(`📂 Reanudando sesión desde: ${resumeSessionPath}`)
+
+  try {
+    const sessionData = await fs.readFile(resumeSessionPath, 'utf-8')
+    session = JSON.parse(sessionData)
+
+    console.log(`\n✅ Sesión cargada:`)
+    console.log(`   Iniciada: ${new Date(session.startTime).toLocaleString()}`)
+    console.log(`   Issues completados: ${session.issuesResueltos.length}`)
+    console.log(`   Issues saltados: ${session.issuesSaltados.length}`)
+    console.log(`   Issues pendientes: ${session.issuesPendientes.length}`)
+    console.log(`   Progreso: ${session.issuesResueltos.length}/${session.maxIssues || '∞'}`)
+    console.log(`\n⏭️  Continuando desde donde se quedó...\n`)
+
+    // Validar que la sesión sea del mismo proyecto
+    if (projectNumber && session.projectNumber !== projectNumber) {
+      throw new Error(`La sesión es del proyecto #${session.projectNumber}, pero se especificó --project=${projectNumber}`)
+    }
+
+  } catch (error) {
+    console.log(`\n❌ Error al cargar sesión: ${error.message}`)
+    console.log(`   Iniciando nueva sesión...\n`)
+    session = null
+  }
+}
+
+if (!session) {
+  // NUEVA SESIÓN
+  session = {
+    startTime: Date.now(),
+    loopMode: loopMode,
+    autonomousMode: autonomousMode,
+    autoSelect: autoSelect,
+    maxIssues: maxIssues,
+    projectNumber: projectNumber,
+    saveSession: saveSession,
+    timeoutPerIssue: timeoutPerIssue,
+    maxConsecutiveFailures: maxConsecutiveFailures,
+
+    // Contadores
+    issuesResueltos: [],
+    issuesSaltados: [],
+    issuesConvertidosEpic: [],
+    issuesPendientes: [],
+
+    // Auto-corrección (Fase 4)
+    autoFixReviews: autonomousMode ? 2 : 0,
+    skipOnFailure: autonomousMode,
+
+    // Auto-resolución de conflictos (Fase 5)
+    autoResolveConflicts: $ARGUMENTS.includes('--auto-resolve-conflicts') || autonomousMode,
+
+    // Circuit breaker (Fase 6)
+    consecutiveFailures: 0,
+
+    // Estadísticas
+    stats: {
+      totalImplementationAttempts: 0,
+      successfulImplementations: 0,
+      autoCorrections: 0,
+      conflictsResolved: 0,
+      conflictsSkipped: 0
+    }
+  }
+
+  console.log(`\n🚀 Nueva sesión iniciada`)
+  console.log(`   Modo: ${autonomousMode ? 'Autónomo' : (loopMode ? 'Loop' : 'Normal')}`)
+  if (maxIssues) console.log(`   Máximo: ${maxIssues} issues`)
+  if (projectNumber) console.log(`   Proyecto: #${projectNumber}`)
+  if (saveSession) console.log(`   Guardando en: ${saveSession}`)
+  if (timeoutPerIssue) console.log(`   Timeout: ${timeoutPerIssue} minutos por issue`)
+  if (maxConsecutiveFailures) console.log(`   Circuit breaker: ${maxConsecutiveFailures} fallos consecutivos`)
+  console.log()
+}
+
+// Crear directorio de sesiones si no existe
+if (saveSession) {
+  const sessionDir = path.dirname(saveSession)
+  await fs.mkdir(sessionDir, { recursive: true })
+}
 ```
 
 ### Sin filtro de proyecto
@@ -157,6 +259,105 @@ if (loopMode && autoSelect && projectNumber) {
 ```
 
 **Output esperado**: Branch creada, issue asignado (auto-seleccionado o elegido manualmente), plan mostrado
+
+---
+
+### Envolver Issue con Timeout (Nuevo - Fase 6)
+
+Cada issue se ejecuta con un timeout configurable para prevenir bloqueos indefinidos:
+
+```javascript
+// Envolver el workflow del issue con timeout
+const issueStartTime = Date.now()
+let issueResult = null
+let timeoutOccurred = false
+
+// Timeout wrapper
+const issuePromise = executeIssueWorkflow(issue)  // PASOS 2-5
+const timeoutPromise = new Promise((_, reject) => {
+  if (session.timeoutPerIssue) {
+    setTimeout(() => {
+      timeoutOccurred = true
+      reject(new Error(`Timeout: Issue excedió ${session.timeoutPerIssue} minutos`))
+    }, session.timeoutPerIssue * 60 * 1000)
+  } else {
+    // Sin timeout, nunca rechazar
+    return new Promise(() => {})
+  }
+})
+
+try {
+  issueResult = await Promise.race([issuePromise, timeoutPromise])
+
+  // Issue completado exitosamente
+  const issueDuration = Math.round((Date.now() - issueStartTime) / 1000 / 60)
+
+  session.issuesResueltos.push({
+    number: issue.number,
+    title: issue.title,
+    pr: prNumber,
+    duration: issueDuration,
+    autoCorrections: autoCorrectionCycles || 0,
+    conflictsResolved: conflictsResolved || false,
+    completedAt: Date.now()
+  })
+
+  // Reset consecutive failures
+  session.consecutiveFailures = 0
+
+  console.log(`\n✅ Issue #${issue.number} completado exitosamente`)
+  console.log(`   Duración: ${issueDuration} minutos`)
+
+} catch (error) {
+  const issueDuration = Math.round((Date.now() - issueStartTime) / 1000 / 60)
+
+  if (timeoutOccurred) {
+    // TIMEOUT: Issue excedió tiempo máximo
+    console.log(`\n⏱️ TIMEOUT: Issue #${issue.number} excedió ${session.timeoutPerIssue} minutos`)
+    console.log(`   El issue tomó demasiado tiempo y fue abortado`)
+
+    session.issuesSaltados.push({
+      number: issue.number,
+      title: issue.title,
+      reason: `Timeout después de ${session.timeoutPerIssue} minutos`,
+      duration: issueDuration,
+      timestamp: Date.now()
+    })
+
+    // Incrementar fallos consecutivos
+    session.consecutiveFailures++
+
+    // Limpiar estado
+    await Bash('git checkout master && git branch -D ' + branchName)
+
+    console.log(`\n⚠️ Saltando issue por timeout`)
+    console.log(`   Fallos consecutivos: ${session.consecutiveFailures}/${session.maxConsecutiveFailures}`)
+
+  } else {
+    // ERROR: Otro tipo de error
+    console.log(`\n❌ Error en issue #${issue.number}: ${error.message}`)
+
+    session.issuesSaltados.push({
+      number: issue.number,
+      title: issue.title,
+      reason: `Error: ${error.message}`,
+      duration: issueDuration,
+      timestamp: Date.now()
+    })
+
+    session.consecutiveFailures++
+
+    console.log(`\n⚠️ Saltando issue por error`)
+    console.log(`   Fallos consecutivos: ${session.consecutiveFailures}/${session.maxConsecutiveFailures}`)
+  }
+}
+```
+
+**Beneficios del timeout**:
+- ✅ Previene bloqueos indefinidos en issues problemáticos
+- ✅ Permite continuar con otros issues en lugar de quedarse atascado
+- ✅ Tracking de duración para identificar issues lentos
+- ✅ Circuit breaker puede detectar patrones de timeouts
 
 ---
 
@@ -672,6 +873,78 @@ console.log(`\n✅ PR #${prNumber} mergeado exitosamente`)
 ---
 
 ## PASO 6: Siguiente Issue (Loop)
+
+### Guardar Sesión (Nuevo - Fase 6)
+
+Después de completar o saltar un issue, guardar el estado de la sesión:
+
+```javascript
+// Guardar estado de sesión después de cada issue
+if (session.saveSession) {
+  session.currentIssue = null  // No hay issue en progreso
+  session.lastUpdate = Date.now()
+  session.duration = Date.now() - session.startTime
+
+  try {
+    await fs.writeFile(
+      session.saveSession,
+      JSON.stringify(session, null, 2),
+      'utf-8'
+    )
+
+    console.log(`💾 Sesión guardada: ${session.saveSession}`)
+  } catch (error) {
+    console.log(`⚠️  Error al guardar sesión: ${error.message}`)
+  }
+}
+```
+
+### Circuit Breaker (Nuevo - Fase 6)
+
+Verificar si se debe detener el workflow por demasiados fallos consecutivos:
+
+```javascript
+// Circuit breaker: detener si hay muchos fallos consecutivos
+if (session.maxConsecutiveFailures && session.consecutiveFailures >= session.maxConsecutiveFailures) {
+  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+  console.log(`🔴 CIRCUIT BREAKER ACTIVADO`)
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+  console.log()
+  console.log(`❌ ${session.consecutiveFailures} fallos consecutivos detectados`)
+  console.log(`   Máximo permitido: ${session.maxConsecutiveFailures}`)
+  console.log()
+  console.log(`⚠️  Deteniendo workflow para prevenir loops infinitos`)
+  console.log()
+  console.log(`📊 Estado del workflow:`)
+  console.log(`   Issues completados: ${session.issuesResueltos.length}`)
+  console.log(`   Issues saltados: ${session.issuesSaltados.length}`)
+  console.log(`   Últimos ${session.consecutiveFailures} issues fallaron consecutivamente`)
+  console.log()
+  console.log(`💡 Posibles causas:`)
+  console.log(`   - Issues del proyecto son demasiado complejos`)
+  console.log(`   - Problemas con servicios externos (GitHub, tests, etc.)`)
+  console.log(`   - Errores de configuración del proyecto`)
+  console.log()
+  console.log(`🔧 Acciones recomendadas:`)
+  console.log(`   1. Revisar issues saltados para identificar patrones`)
+  console.log(`   2. Verificar configuración del proyecto`)
+  console.log(`   3. Intentar resolver un issue manualmente para diagnosticar`)
+  console.log(`   4. Ajustar parámetros (--timeout-per-issue, --max-consecutive-failures)`)
+  console.log()
+
+  if (session.saveSession) {
+    console.log(`💾 Sesión guardada en: ${session.saveSession}`)
+    console.log(`   Para reanudar: /workflow:issue-complete --resume=${session.saveSession}`)
+    console.log()
+  }
+
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+
+  // Mostrar resumen y terminar
+  showFinalSummary(session)
+  return
+}
+```
 
 ### Modo Normal (sin --loop)
 
@@ -1388,6 +1661,242 @@ Opciones:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+### Ejemplo 7: Persistencia de Sesión, Timeouts y Circuit Breaker (Nuevo - Fase 6)
+
+```
+Usuario: /workflow:issue-complete --loop --max=10 --autonomous --timeout-per-issue=8 --max-consecutive-failures=2
+
+[Session Iniciada con Fase 6]
+🚀 Nueva sesión iniciada
+   Modo: Autónomo
+   Máximo: 10 issues
+   Guardando en: .claude/session/workflow-session.json
+   Timeout: 8 minutos por issue
+   Circuit breaker: 2 fallos consecutivos
+
+[ISSUE 1/10]
+→ Auto-selecciona #170 [ALTA] Optimize database queries
+→ Tiempo inicio: 14:00:00
+→ Implementa cambios...
+→ PR #260 creado
+→ Code Review: APROBADO ✅
+→ Merge exitoso ✅
+→ Duración: 5 minutos
+
+✅ Issue #170 completado exitosamente
+   Duración: 5 minutos
+
+💾 Sesión guardada: .claude/session/workflow-session.json
+
+[ISSUE 2/10]
+→ Auto-selecciona #171 [ALTA] Add real-time notifications
+→ Tiempo inicio: 14:05:30
+→ Implementa cambios... (complejo, muchos archivos)
+→ Tiempo transcurrido: 6 minutos...
+→ Tiempo transcurrido: 7 minutos...
+→ Tiempo transcurrido: 8 minutos...
+
+⏱️ TIMEOUT: Issue #171 excedió 8 minutos
+   El issue tomó demasiado tiempo y fue abortado
+
+⚠️ Saltando issue por timeout
+   Fallos consecutivos: 1/2
+
+💾 Sesión guardada: .claude/session/workflow-session.json
+
+[ISSUE 3/10]
+→ Auto-selecciona #172 [MEDIA] Update user profile page
+→ Tiempo inicio: 14:14:00
+→ Implementa cambios...
+→ PR #261 creado
+→ Code Review: RECHAZADO (2 issues críticos)
+
+🔄 Auto-Corrección: Ciclo 1/2
+   → Corrigiendo...
+   → Review: RECHAZADO (1 issue crítico persiste)
+
+🔄 Auto-Corrección: Ciclo 2/2
+   → Corrigiendo...
+   → Review: RECHAZADO (1 issue crítico persiste)
+
+❌ No se pudo auto-corregir después de 2 ciclos
+
+⚠️ Saltando issue #172
+   Fallos consecutivos: 2/2
+
+💾 Sesión guardada: .claude/session/workflow-session.json
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CIRCUIT BREAKER ACTIVADO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ 2 fallos consecutivos detectados
+   Máximo permitido: 2
+
+⚠️  Deteniendo workflow para prevenir loops infinitos
+
+📊 Estado del workflow:
+   Issues completados: 1
+   Issues saltados: 2
+   Últimos 2 issues fallaron consecutivamente
+
+💡 Posibles causas:
+   - Issues del proyecto son demasiado complejos
+   - Problemas con servicios externos (GitHub, tests, etc.)
+   - Errores de configuración del proyecto
+
+🔧 Acciones recomendadas:
+   1. Revisar issues saltados para identificar patrones
+   2. Verificar configuración del proyecto
+   3. Intentar resolver un issue manualmente para diagnosticar
+   4. Ajustar parámetros (--timeout-per-issue, --max-consecutive-failures)
+
+💾 Sesión guardada en: .claude/session/workflow-session.json
+   Para reanudar: /workflow:issue-complete --resume=.claude/session/workflow-session.json
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Mostrar Resumen Final]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SESIÓN COMPLETADA (Circuit Breaker)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Duración total: 14 minutos
+
+📊 ESTADÍSTICAS FINALES:
+  Issues procesados:   3/10 (30%)
+  ├─ ✅ Completados:   1 (33%)
+  ├─ ⚠️ Saltados:      2 (67%)
+  └─ ❌ Abortados:     0 (0%)
+
+  PRs creados:         2
+  PRs mergeados:       1
+
+  Timeouts:            1
+  Auto-correcciones:   1 (fallida)
+  Circuit breaker:     ACTIVADO después de 2 fallos
+
+📋 ISSUES COMPLETADOS:
+  1. ✅ #170 [ALTA] Optimize database queries → PR #260 ✅ (5 min)
+
+⚠️ ISSUES SALTADOS (requieren atención manual):
+  1. #171 [ALTA] Add real-time notifications
+     Razón: Timeout después de 8 minutos
+     Duración: 8 minutos
+     Complejidad: ALTA (requiere más tiempo o división)
+
+  2. #172 [MEDIA] Update user profile page
+     Razón: Code review rechazado después de 2 ciclos
+     PR: #261 (abierto, necesita correcciones)
+     Feedback: "Falta manejo de errores en el formulario"
+
+💾 SESIÓN GUARDADA:
+  Archivo: .claude/session/workflow-session.json
+
+  Contenido guardado:
+  - Issues completados: 1
+  - Issues saltados: 2
+  - Issues pendientes: 7
+  - Configuración de sesión
+  - Estadísticas detalladas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+=== 2 HORAS DESPUÉS ===
+
+Usuario: /workflow:issue-complete --resume=.claude/session/workflow-session.json --timeout-per-issue=12
+
+[Reanudando Sesión]
+📂 Reanudando sesión desde: .claude/session/workflow-session.json
+
+✅ Sesión cargada:
+   Iniciada: 2025-12-22 14:00:00
+   Issues completados: 1
+   Issues saltados: 2
+   Issues pendientes: 7
+   Progreso: 1/10
+
+⏭️  Continuando desde donde se quedó...
+
+[Configuración actualizada]
+   Timeout aumentado: 12 minutos (antes: 8)
+   Circuit breaker: 2 fallos consecutivos
+   Fallos actuales: 0 (reset manual)
+
+[ISSUE 4/10]
+→ Auto-selecciona #173 [MEDIA] Add export functionality
+→ Implementa → PR #262 → Review ✅ → Merge ✅
+→ Duración: 4 minutos
+→ Fallos consecutivos: 0/2 (reset)
+
+✅ Issue #173 completado (2/10 total)
+
+💾 Sesión actualizada
+
+[ISSUE 5/10]
+→ Auto-selecciona #171 [ALTA] Add real-time notifications (reintento)
+→ Implementa con más tiempo...
+→ Duración: 11 minutos
+→ PR #263 creado
+→ Review ✅ → Merge ✅
+
+✅ Issue #171 completado (3/10 total) - Resuelto en reintento
+
+💾 Sesión actualizada
+
+[... Continúa con issues 6-10 ...]
+
+[Mostrar Resumen Final]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SESIÓN COMPLETADA EXITOSAMENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Duración total: 3h 25m (incluyendo pausa de 2h)
+  ├─ Sesión 1: 14 minutos (1 completado, 2 saltados)
+  ├─ Pausa: 2 horas
+  └─ Sesión 2: 1h 11m (9 completados, 0 saltados)
+
+📊 ESTADÍSTICAS FINALES:
+  Issues procesados:   10/10 (100%)
+  ├─ ✅ Completados:   10 (100%)
+  ├─ ⚠️ Saltados:      0 (0%)
+  └─ ❌ Abortados:     0 (0%)
+
+  PRs creados:         10
+  PRs mergeados:       10
+
+  Sesiones:            2
+  ├─ Pausas/Reanudaciones: 1
+  └─ Circuit breakers:     1 (sesión 1)
+
+⏱️  TIMEOUTS & CIRCUIT BREAKER:
+  Sesión 1:
+  - Timeout #171 (8 min) → Resuelto en sesión 2 con más tiempo
+  - Circuit breaker activado después de 2 fallos
+
+  Sesión 2:
+  - Sin timeouts
+  - Sin circuit breakers
+  - Timeout aumentado a 12 min ayudó con issues complejos
+
+💾 SESIÓN GUARDADA:
+  Archivo: .claude/session/workflow-session.json
+  Estado: COMPLETADA
+
+📈 LECCIONES APRENDIDAS:
+  - Issue #171 requirió 11 minutos (excedió timeout inicial de 8 min)
+  - Ajustar --timeout-per-issue según complejidad de issues
+  - Circuit breaker previno 8+ issues fallando innecesariamente
+  - Persistencia permitió reanudar sin perder progreso
+
+💡 RECOMENDACIÓN PARA PRÓXIMAS SESIONES:
+  - Usar --timeout-per-issue=12 para issues complejos
+  - Mantener --max-consecutive-failures=2 para protección
+  - Siempre usar --save-session en sesiones largas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 ---
 
 ## Notas Importantes
@@ -1406,6 +1915,9 @@ Opciones:
 12. **Combinar filtros** - Se pueden combinar `--loop`, `--max=N` y `--project=N` simultáneamente
 13. **Auto-corrección de code reviews (Fase 4)** - Usa `--auto-fix-reviews=N` para permitir hasta N ciclos de corrección automática cuando el review es rechazado
 14. **Auto-resolución de conflictos (Fase 5)** - Usa `--auto-resolve-conflicts` para intentar resolver conflictos de merge automáticamente con estrategias progresivas (rebase, merge ours, selectiva)
+15. **Persistencia de sesión (Fase 6)** - Usa `--save-session` para guardar progreso después de cada issue, permite pausar y reanudar con `--resume=<path>`
+16. **Timeouts por issue (Fase 6)** - Usa `--timeout-per-issue=N` (minutos) para prevenir bloqueos indefinidos en issues problemáticos (default: 10 en modo autónomo)
+17. **Circuit breaker (Fase 6)** - Usa `--max-consecutive-failures=N` para detener el workflow después de N fallos consecutivos y prevenir loops infinitos (default: 3 en modo autónomo)
 
 ---
 
