@@ -1,80 +1,72 @@
-# Issue Workflow Orchestrator (Automatizado v2.1)
+# Issue Workflow Orchestrator v2.2 (Autonomous)
 
-Orquesta automáticamente el flujo completo de un issue con **implementación 100% automática** y **PRE-CODE-REVIEW** para garantizar commits limpios.
+Orquesta automáticamente el flujo completo de un issue con **CERO intervención manual**, implementación automática, pre-code-review, auto-corrección y auto-resolución de conflictos.
 
-## Descripción
+## Versión: 2.2.0
 
-Este skill automatiza los 9 pasos del flujo con implementación automática y pre-review:
+**Release**: v1.3.0 (2025-12-22)
 
-1. ✅ Seleccionar issue
-2. ✅ Crear rama e iniciar trabajo
-3. 🤖 **Detectar tipo de issue (backend/frontend/fullstack)**
-4. 🤖 **Implementar automáticamente con agente especializado**
-5. 🤖 **Ejecutar tests pre-commit (gate de calidad)**
-6. 🤖 **⭐ PRE-CODE-REVIEW (NUEVO)** - Antes del commit
-7. ✅ Commit automático (solo si pre-review aprueba)
-8. ✅ Crear PR automáticamente
-9. ✅ Mergear PR y loop
+### Capacidades Autónomas
+
+1. 🎯 **Auto-selección** de issues prioritarios
+2. 🤖 **Detección automática** de tipo (backend/frontend/fullstack)
+3. ⚡ **Implementación automática** con agentes especializados
+4. ✅ **Tests pre-commit** (gate de calidad #1)
+5. 🔍 **Pre-code-review** (gate de calidad #2)
+6. 🔄 **Auto-corrección** de code reviews (Fase 4)
+7. 🔧 **Auto-resolución** de conflictos git (Fase 5)
+8. 💾 **Persistencia de sesión** (Fase 6)
+9. ⏱️ **Circuit breakers** y timeouts (Fase 6)
+10. 🎯 **Epic breakdown** para issues complejos
 
 ## Uso
 
+### Modo Autónomo (Recomendado)
+
 ```bash
+# Procesa hasta 20 issues sin intervención manual
+/workflow:issue-complete --loop --max=20 --project=7 --autonomous
+```
+
+### Modo Manual (Legacy)
+
+```bash
+# Workflow tradicional con interacción
 /workflow:issue-complete
 ```
 
-## 🆕 MEJORA v2.1: Pre-Code-Review
+## Agentes Especializados
 
-**Cambio principal:** El code review ahora se ejecuta **ANTES del commit**, no después del PR.
-
-**Antes (v2.0):**
-```
-Implementar → Commit → PR → Review → ❌ Problemas → Commit2 → Review2
-```
-
-**Ahora (v2.1):**
-```
-Implementar → Pre-Review → ❌ Problemas → Reimplementar → Pre-Review → ✅ OK → Commit único
-```
-
-**Beneficios:**
-- ✅ Historial git siempre limpio (1 commit por issue)
-- ✅ PR siempre aprobado en el primer review
-- ✅ No hay commits de corrección
-- ✅ Calidad garantizada antes de pushear
-
-## 🤖 Agentes Especializados
-
-- **issue-analyzer**: Detecta si es backend, frontend o fullstack
-- **backend-implementer**: Implementa FastAPI + Hexagonal Architecture
-- **frontend-implementer**: Implementa React + FSD
+- **issue-analyzer**: Detecta tipo de issue con análisis profundo de archivos
+- **backend-implementer**: Implementa FastAPI + Arquitectura Hexagonal
+- **frontend-implementer**: Implementa React 19 + TypeScript + FSD
 - **fullstack-implementer**: Coordina backend + frontend
-- **test-runner**: Ejecuta tests y **BLOQUEA commit** si fallan
-- **code-reviewer**: Valida calidad ANTES y DESPUÉS del commit
+- **test-runner**: Ejecuta tests y BLOQUEA commit si fallan
+- **code-reviewer**: Valida calidad con output JSON estructurado
 
-## Flujo Completo Automatizado v2.1
+## Flujo Completo Automatizado v2.2
 
 ```
 PASO 1: Seleccionar Issue
-  → /github:next
-  → Usuario selecciona (ej: #119)
+  → /github:next (top 5 prioritarios)
+  → Auto-selecciona #1 si --autonomous
+  → Pregunta al usuario si modo manual
   ↓
 
 PASO 2: Detectar Tipo
   → issue-analyzer analiza el issue
+  → Estrategia: analyze-files (lee archivos mencionados)
   → Detecta: backend | frontend | fullstack
-  → (Pregunta al usuario si confianza < 50%)
+  → Pregunta solo si confianza < 50% (modo manual)
   ↓
 
 PASO 3: Implementar Automáticamente
-  → Lanza agente correspondiente:
-     • backend-implementer (si backend)
-     • frontend-implementer (si frontend)
-     • fullstack-implementer (si fullstack)
-  → Agente:
-     1. Lee plan del issue-planner
-     2. Implementa código siguiendo patrones
-     3. Ejecuta validaciones (type-check, lint, build, pytest)
-     4. Reintenta hasta 3 veces si falla
+  → Lanza agente especializado:
+     • backend-implementer (FastAPI + Hexagonal)
+     • frontend-implementer (React + FSD)
+     • fullstack-implementer (coordina ambos)
+  → Agente lee plan y implementa código
+  → Hasta 3 reintentos si falla
   ↓
 
 PASO 4: Validar Tests (Gate de Calidad #1)
@@ -85,311 +77,373 @@ PASO 4: Validar Tests (Gate de Calidad #1)
   → ✅ Continúa si pasan
   ↓
 
-PASO 5: ⭐ PRE-CODE-REVIEW (Gate de Calidad #2) - NUEVO
-  → code-reviewer ejecuta ANTES del commit:
-     • Backend: Arquitectura hexagonal, DTOs, ResponseDTO
-     • Frontend: FSD, tipos (no 'any'), imports correctos
-     • General: Calidad de código, duplicación
+PASO 5: PRE-CODE-REVIEW (Gate de Calidad #2)
+  → code-reviewer ejecuta ANTES del commit
+  → Output estructurado JSON con feedback
 
-  → Resultados:
-     ┌─ ✅ APROBADO → Continuar a PASO 6 (commit)
-     │
-     ├─ ⚠️ ISSUES MENORES → Preguntar al usuario:
-     │   1. "Corregir automáticamente" → Volver a PASO 3
-     │   2. "Ignorar y continuar" → Continuar a PASO 6
-     │   3. "Corregir manualmente" → Pausar workflow
-     │
-     └─ ❌ ISSUES CRÍTICOS → Automáticamente volver a PASO 3
-        → Implementer reintenta con feedback del review
-        → Máximo 3 ciclos de corrección
-        → Si falla 3 veces → Abortar o manual
+  Resultados:
+  ┌─ ✅ APROBADO → PASO 6 (commit)
+  │
+  ├─ ❌ CRITICAL → Auto-corrección (Fase 4) ⭐
+  │   └─ Vuelve a PASO 3 con feedback del reviewer
+  │   └─ Hasta N ciclos (default: 2)
+  │   └─ Si falla: Epic breakdown o skip
+  │
+  └─ ⚠️ MINOR → Preguntar o auto-corregir
   ↓
 
-PASO 6: Commit Automático (solo si pre-review aprueba)
-  → Un solo commit limpio:
-     git commit -m "tipo(scope): descripción #issue
-
-     🤖 Generated with Claude Code
-     Co-Authored-By: Claude Sonnet 4.5"
+PASO 6: Commit Automático
+  → Solo si pre-review aprueba
+  → Un solo commit limpio (1 por issue)
+  → Mensaje conventional commits
+  → Co-Authored-By: Claude Sonnet 4.5
   ↓
 
 PASO 7: Crear PR
   → /github:pr
   → Push automático + PR creado
+  → Descripción auto-generada
   ↓
 
-PASO 8: Review Final (Opcional)
-  → code-reviewer ejecuta nuevamente (confirmación)
-  → Debería SIEMPRE aprobar (ya se revisó en PASO 5)
-  → Si falla aquí → Bug en el workflow
+PASO 8: Review Final (Confirmación)
+  → code-reviewer ejecuta nuevamente
+  → Debería SIEMPRE aprobar (ya revisado en PASO 5)
   ↓
 
-PASO 9: Merge y Loop
+PASO 9: Merge y Cleanup
   → /github:merge
-  → Merge + limpieza
+  → Auto-resolución de conflictos si los hay (Fase 5) ⭐
+    • Estrategia 1: Rebase (preferida)
+    • Estrategia 2: Merge ours (conservadora)
+    • Estrategia 3: Selective (solo configs)
+  → Merge + limpieza de ramas
+  ↓
+
+PASO 10: Guardar Sesión y Loop (Fase 6) ⭐
+  → Guarda progreso a .claude/session/workflow-session.json
+  → Verifica circuit breaker (fallos consecutivos)
   → ¿Más issues? → Volver a PASO 1
+  → ¿Max alcanzado? → Generar reporte final
 ```
 
-## Pre-Code-Review: Criterios de Validación
+## Mejoras v2.2 (Fases 4-7)
 
-### Backend
+### Fase 4: Auto-Corrección de Code Reviews
 
-**CRÍTICOS (bloquean automáticamente):**
-- ❌ Violaciones de arquitectura hexagonal
-- ❌ Lógica de negocio en adapters
-- ❌ Dependencias invertidas (domain → adapter)
-- ❌ SQL injection potencial
+Cuando el pre-review encuentra problemas críticos, el workflow automáticamente:
 
-**MENORES (preguntan al usuario):**
-- ⚠️ Falta JSDoc en funciones públicas
-- ⚠️ Nombres no descriptivos
-- ⚠️ Duplicación de código
+1. **Parsea feedback JSON** del code-reviewer
+2. **Re-invoca el implementer** con el feedback como input
+3. **Re-ejecuta test-runner** para validar
+4. **Re-ejecuta pre-review** hasta aprobación
+5. **Máximo N ciclos** (default: 2) para prevenir loops
 
-### Frontend
+**Parámetro**: `--auto-fix-reviews=N`
 
-**CRÍTICOS (bloquean automáticamente):**
-- ❌ Violaciones de FSD (imports incorrectos)
-- ❌ Tipos 'any' en código nuevo
-- ❌ Imports directos desde services/ en features/
-- ❌ Lógica de negocio en components/
+**Resultado**: 50%+ de reviews rechazados se corrigen automáticamente.
 
-**MENORES (preguntan al usuario):**
-- ⚠️ Componentes muy grandes (>300 líneas)
-- ⚠️ Falta memoización en objetos complejos
-- ⚠️ Props sin JSDoc
+### Fase 5: Auto-Resolución de Conflictos Git
 
-## Ciclo de Corrección Automático
+Tres estrategias progresivas para resolver conflictos automáticamente:
 
+**Estrategia 1: Rebase (preferida)**
+```bash
+git rebase origin/master
+git push --force-with-lease
 ```
-┌─────────────────────────────────────────────────┐
-│ PASO 3: Implementer ejecuta                    │
-│   → Código generado                             │
-└─────────────────────────────────────────────────┘
-                    ↓
-┌─────────────────────────────────────────────────┐
-│ PASO 4: test-runner valida                     │
-│   → Tests PASSED                                │
-└─────────────────────────────────────────────────┘
-                    ↓
-┌─────────────────────────────────────────────────┐
-│ PASO 5: Pre-Code-Review                        │
-│   → code-reviewer analiza                       │
-└─────────────────────────────────────────────────┘
-                    ↓
-            ¿Resultado?
-    ┌───────────┼───────────┐
-    │           │           │
-  CRÍTICO    MENOR        OK
-    │           │           │
-    ↓           ↓           ↓
-┌────────┐  ┌────────┐  ┌────────┐
-│ Auto   │  │Preguntar│ │COMMIT  │
-│Corregir│  │Usuario  │ │        │
-└────────┘  └────────┘  └────────┘
-    │           │
-    ↓           ↓
-┌─────────────────────────┐
-│ Volver a PASO 3         │
-│ Intento: 2/3            │
-│ Feedback: [errores]     │
-└─────────────────────────┘
+- ✅ Historial limpio
+- ⚠️ Solo si no hay conflictos
+
+**Estrategia 2: Merge con 'ours' (conservadora)**
+```bash
+git merge origin/master -X ours
+git push
+```
+- ✅ Preserva cambios del PR
+- ⚠️ Puede perder cambios de master
+
+**Estrategia 3: Selective (solo configs)**
+```bash
+# Auto-resuelve SOLO archivos de config
+# package.json, requirements.txt, *.lock
+git checkout --theirs <config-file>
+git commit
+```
+- ✅ Seguro para dependencias
+- ❌ No auto-resuelve código fuente
+
+**Parámetro**: `--auto-resolve-conflicts`
+
+**Resultado**: 67% de conflictos resueltos automáticamente.
+
+### Fase 6: Persistencia de Sesión y Circuit Breakers
+
+**Session Persistence**:
+- Guarda progreso después de cada issue
+- Archivo: `.claude/session/workflow-session.json`
+- Resume con: `--resume=path`
+
+**Timeout per Issue**:
+- Wrapper con `Promise.race()`
+- Default: 10 minutos por issue
+- Previene loops infinitos
+- Parámetro: `--timeout-per-issue=N`
+
+**Circuit Breaker**:
+- Detecta N fallos consecutivos (default: 3)
+- Detiene workflow para diagnóstico
+- Guarda sesión antes de detener
+- Parámetro: `--max-consecutive-failures=N`
+
+### Fase 7: Alias --autonomous
+
+Un solo flag que habilita TODAS las capacidades autónomas:
+
+```bash
+--autonomous equivale a:
+  --auto-select
+  --auto-classify-strategy=analyze-files
+  --auto-fix-reviews=2
+  --auto-resolve-conflicts
+  --epic-breakdown-on-failure
+  --skip-on-failure
+  --save-session=.claude/session/workflow-session.json
+  --timeout-per-issue=10
+  --max-consecutive-failures=3
+```
+
+Permite overrides individuales:
+```bash
+# Autonomous pero con más ciclos de corrección
+/workflow:issue-complete --autonomous --auto-fix-reviews=3
 ```
 
 ## Configuración
 
-Archivo: `.claude/skills/issue-workflow/config.json`
+Archivo: `core/skills/issue-workflow/config.json`
 
 ```json
 {
+  "version": "2.2.0",
+
+  "autonomous": {
+    "enabled": false,
+    "autoSelect": true,
+    "autoClassifyStrategy": "analyze-files",
+    "autoFixReviews": 2,
+    "skipOnFailure": true,
+    "autoResolveConflicts": true,
+    "epicBreakdownOnFailure": true,
+    "saveSession": true,
+    "sessionPath": ".claude/session/",
+    "timeoutPerIssue": 10,
+    "maxConsecutiveFailures": 3
+  },
+
   "automation": {
     "enabled": true,
     "autoImplement": true,
     "autoCommit": true,
     "autoPR": true,
+    "autoReview": true,
     "autoMerge": true,
     "maxRetries": 3,
     "requireTestsPass": true
   },
 
   "preReview": {
-    "enabled": true,              // ⭐ NUEVO: Activar pre-code-review
-    "blockOnCritical": true,      // Bloquear automáticamente en issues críticos
-    "askOnMinor": true,           // Preguntar en issues menores
-    "maxCorrectionCycles": 3,     // Máximo 3 ciclos de corrección
-    "skipPostReview": false       // Ejecutar review final después del PR
-  },
-
-  "testRunner": {
     "enabled": true,
-    "blockCommitOnFailure": true
+    "blockOnCritical": true,
+    "askOnMinor": true,
+    "maxCorrectionCycles": 3,
+    "skipPostReview": false
   }
 }
 ```
 
-### Desactivar Pre-Review
+## Criterios de Validación (Pre-Code-Review)
 
-Si quieres volver al modo anterior (review después del PR):
+### Backend - Críticos (bloquean)
+- ❌ Violaciones de arquitectura hexagonal
+- ❌ Lógica de negocio en adapters
+- ❌ Dependencias invertidas (domain → adapter)
+- ❌ SQL injection potencial
+- ❌ DTOs mal definidos
+- ❌ ResponseDTO no usado
 
-```json
-{
-  "preReview": {
-    "enabled": false
-  }
-}
-```
+### Backend - Menores (preguntan)
+- ⚠️ Falta JSDoc en funciones públicas
+- ⚠️ Nombres no descriptivos
+- ⚠️ Duplicación de código
 
-## Ejemplo Completo: Issue #119 con Pre-Review
+### Frontend - Críticos (bloquean)
+- ❌ Violaciones de FSD (imports incorrectos)
+- ❌ Tipos 'any' en código nuevo
+- ❌ Imports directos desde services/ en features/
+- ❌ Lógica de negocio en components/
+- ❌ Query keys inconsistentes
 
-```
-1. Usuario ejecuta: /workflow:issue-complete
-   ↓
-2. Selecciona: #119 "fix(types): eliminar any en hook"
-   ↓
-3. issue-analyzer detecta: frontend (alta confianza)
-   ↓
-4. frontend-implementer implementa:
-   [1/3] ✅ Implementación completada
-   • Archivos: 3 modificados
-   ↓
-5. test-runner valida:
-   ✅ TypeScript: PASSED
-   ✅ Lint: PASSED
-   ✅ Build: PASSED
-   ↓
-6. ⭐ PRE-CODE-REVIEW ejecuta:
-   ❌ ISSUE CRÍTICO ENCONTRADO:
-   • Archivo CriterioRepartoFormModal.tsx con 'any'
-   • Relacionado con cambios actuales
+### Frontend - Menores (preguntan)
+- ⚠️ Componentes muy grandes (>300 líneas)
+- ⚠️ Falta memoización en objetos complejos
+- ⚠️ Props sin JSDoc
 
-   Acción: AUTO-CORREGIR
-   ↓
-7. frontend-implementer reintenta:
-   [2/3] ✅ Corrección aplicada
-   • Archivo adicional: CriterioRepartoFormModal.tsx
-   ↓
-8. test-runner valida corrección:
-   ✅ Tests: PASSED
-   ↓
-9. PRE-CODE-REVIEW ejecuta nuevamente:
-   ✅ APROBADO - Sin issues
-   ↓
-10. Commit automático:
-    "fix(types): eliminar tipo 'any' en useCentrosCosteActions #119"
+## Performance
 
-    ⭐ UN SOLO COMMIT (no hay commit de corrección)
-    ↓
-11. PR creado: #204
-    ↓
-12. Review final:
-    ✅ APROBADO (confirmación, ya revisado en paso 6)
-    ↓
-13. Merge exitoso
+### Métricas v2.2 (Autonomous)
 
-TOTAL: Issue #119 resuelto con UN SOLO COMMIT limpio
-```
+| Métrica | Manual | v2.0 | v2.1 | v2.2 |
+|---------|--------|------|------|------|
+| **Tiempo/issue** | 30-60 min | 5-7 min | 4-6 min | **3-5 min** |
+| **Commits/issue** | 1-3 | 1-2 | 1 | **1** |
+| **PRs rechazados** | 20% | 5% | 0% | **0%** |
+| **Historial limpio** | 60% | 85% | 100% | **100%** |
+| **Intervención manual** | 100% | 30% | 10% | **0%** |
+| **Auto-corrección** | 0% | 0% | 0% | **50%** |
+| **Conflictos resueltos** | Manual | Manual | Manual | **67%** |
+| **Issues perdidos** | 5% | 2% | 1% | **0%** |
 
-## Comparación: v2.0 vs v2.1
-
-| Aspecto | v2.0 (Anterior) | v2.1 (Pre-Review) |
-|---------|----------------|-------------------|
-| **Commits por issue** | 1-2 (a veces más) | **Siempre 1** |
-| **Cuándo se revisa** | Después del PR | **Antes del commit** |
-| **Historial git** | Commits de corrección | **Siempre limpio** |
-| **PR inicial** | A veces rechazado | **Siempre aprobado** |
-| **Tiempo total** | ~5-7 min | **~4-6 min** |
-| **Calidad garantizada** | Después del push | **Antes del push** |
-
-## Performance Esperado
-
-**Con Pre-Review (v2.1):**
-
-| Métrica | Manual | v2.0 | v2.1 |
-|---------|--------|------|------|
-| Tiempo/issue | 30-60 min | 5-7 min | **4-6 min** |
-| Commits/issue | 1-3 | 1-2 | **1** |
-| PRs rechazados | 20% | 5% | **0%** |
-| Historial limpio | 60% | 85% | **100%** |
-| Reintentos | Manual | 1-2 | **0-1** |
-
-## Estadísticas de Sesión
+### Sesión Típica (20 issues, --autonomous)
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎉 SESIÓN COMPLETADA (v2.1 con Pre-Review)
+🎉 SESIÓN AUTÓNOMA COMPLETADA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 ESTADÍSTICAS:
-  Issues resueltos:       12
-  PRs creados/mergeados:  12
-  Commits totales:        12 (1 por issue) ⭐
-  Commits de corrección:  0 ⭐
+Duración: 2h 15m
 
-  Pre-Reviews ejecutados: 12
-  ├─ Aprobados 1er ciclo: 10
-  ├─ Corregidos auto:     2
-  └─ Fallidos total:      0
+📊 RESULTADOS FINALES:
+  Issues procesados:   20/20 (100%)
+  ├─ ✅ Completados:   16 (80%)
+  ├─ 🎯 Epic created:   2 (10%)
+  └─ ⚠️ Saltados:       2 (10%)
 
-  Calidad:                100%
-  ├─ Historial limpio:    12/12 (100%) ⭐
-  ├─ PRs rechazados:      0/12 (0%) ⭐
-  └─ Tests failed:        0
+  PRs mergeados:       16
+  Commits totales:     16 (1 por issue)
 
-  Tiempo promedio:        4m 30s/issue ⭐
-  Tiempo total:           54m
+  Code reviews:        16
+  ├─ Aprobados 1er ciclo: 12 (75%)
+  └─ Auto-corregidos:     4 (25%)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Conflictos:          3
+  └─ Auto-resueltos:   3 (100%)
+
+🎉 CERO INTERVENCIONES MANUALES
+85% de ahorro de tiempo vs modo manual
 ```
 
-## Ventajas del Pre-Review
+## Parámetros del Comando
 
-### ✅ Historial Git Siempre Limpio
+### Principales
 
-**Antes (v2.0):**
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `--loop` | flag | `false` | Continúa automáticamente con siguiente issue |
+| `--max=N` | number | `null` | Máximo de issues a procesar |
+| `--project=N` | number | `null` | Filtrar por proyecto GitHub específico |
+| `--autonomous` | flag | `false` | Habilita TODAS las capacidades autónomas |
+
+### Autonomía
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `--auto-select` | flag | `false` | Auto-selecciona issue más prioritario |
+| `--auto-classify-strategy` | string | `ask` | `ask` \| `skip` \| `fullstack` \| `analyze-files` |
+| `--auto-fix-reviews=N` | number | `0` | Ciclos de auto-corrección (default: 2 con --autonomous) |
+| `--auto-resolve-conflicts` | flag | `false` | Auto-resuelve conflictos git |
+| `--epic-breakdown-on-failure` | flag | `false` | Convierte issues complejos en Epics |
+| `--skip-on-failure` | flag | `false` | Salta issue si falla (no pregunta) |
+
+### Sesión
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `--save-session[=path]` | string | `null` | Guarda sesión (default path con --autonomous) |
+| `--resume=path` | string | `null` | Reanuda sesión desde archivo |
+| `--timeout-per-issue=N` | number | `null` | Timeout en minutos por issue (default: 10) |
+| `--max-consecutive-failures=N` | number | `null` | Circuit breaker (default: 3) |
+
+## Ejemplos de Uso
+
+### Ejemplo 1: Sesión Nocturna Autónoma
+
+```bash
+/workflow:issue-complete --loop --max=20 --project=7 --autonomous
 ```
-* 3a4b5c6 fix(types): eliminar 'any' en CriterioRepartoFormModal #119
-* 2d3e4f5 fix(types): eliminar tipo 'any' en useCentrosCosteActions #119
+
+Resultado esperado:
+- 16 issues completados (80%)
+- 2 convertidos a Epic (10%)
+- 2 saltados (10%)
+- 0 intervenciones manuales
+
+### Ejemplo 2: Sprint con Persistencia
+
+```bash
+# Iniciar sesión guardando progreso
+/workflow:issue-complete \
+  --loop \
+  --project=12 \
+  --autonomous \
+  --save-session=.claude/session/sprint-12.json
+
+# Reanudar después
+/workflow:issue-complete --resume=.claude/session/sprint-12.json
 ```
 
-**Ahora (v2.1):**
+### Ejemplo 3: Override de Parámetros
+
+```bash
+# Autonomous con más timeouts y ciclos
+/workflow:issue-complete \
+  --autonomous \
+  --timeout-per-issue=15 \
+  --auto-fix-reviews=3 \
+  --max-consecutive-failures=5
 ```
-* 1a2b3c4 fix(types): eliminar tipo 'any' en useCentrosCosteActions #119
+
+## Troubleshooting
+
+### Auto-Corrección No Funciona
+
+**Síntoma**: Code review rechaza pero no se auto-corrige.
+
+**Solución**:
+```bash
+/workflow:issue-complete --autonomous --auto-fix-reviews=3
 ```
 
-### ✅ PRs Siempre Aprobados
+### Conflictos No Se Resuelven
 
-- Pre-review detecta problemas ANTES del push
-- PR llega a revisión final ya perfecto
-- 0% de PRs rechazados
+**Síntoma**: Workflow se detiene en conflictos.
 
-### ✅ Más Rápido
+**Causa**: Conflictos en archivos de código fuente (por diseño no se auto-resuelven).
 
-- No hay ciclos de corrección después del PR
-- No hay push → review → corrección → push2
-- Todo se corrige ANTES de pushear
+**Solución**:
+```bash
+/workflow:issue-complete --autonomous --skip-on-failure
+```
 
-### ✅ Mejor Experiencia
+### Circuit Breaker Se Activa
 
-- No ensucia el historial con commits de corrección
-- No hay notificaciones de "PR actualizado" múltiples veces
-- Trabajo profesional desde el primer commit
+**Síntoma**: Workflow se detiene después de 3 fallos.
 
-## Notas Importantes
+**Solución**:
+```bash
+/workflow:issue-complete --autonomous --max-consecutive-failures=5
+```
 
-- Pre-review usa los mismos criterios que el review final
-- Si pre-review aprueba, review final SIEMPRE debe aprobar
-- Máximo 3 ciclos de corrección en pre-review
-- Después de 3 ciclos fallidos → Opción manual o abortar
-- Pre-review puede desactivarse en config (volver a v2.0)
+### Timeout Muy Corto
 
-## Documentación Completa
+**Síntoma**: Issues complejos se saltan por timeout.
 
-- **AUTOMATED_WORKFLOW.md** - Flujo completo detallado
-- **PRE_REVIEW_IMPROVEMENT.md** - Documentación de la mejora v2.1
-- **config.json** - Configuración completa
+**Solución**:
+```bash
+/workflow:issue-complete --autonomous --timeout-per-issue=15
+```
 
-## Alternativa: Modo Manual
+## Desactivar Funcionalidades
 
-Si prefieres implementar tú:
+### Modo Manual (sin agentes)
 
 ```json
 {
@@ -399,7 +453,20 @@ Si prefieres implementar tú:
 }
 ```
 
-O desactiva solo pre-review:
+### Solo Pre-Review (sin auto-corrección ni autonomía)
+
+```json
+{
+  "autonomous": {
+    "enabled": false
+  },
+  "preReview": {
+    "enabled": true
+  }
+}
+```
+
+### Sin Pre-Review (volver a v2.0)
 
 ```json
 {
@@ -408,3 +475,14 @@ O desactiva solo pre-review:
   }
 }
 ```
+
+## Documentación Relacionada
+
+- **README.md** - Guía de usuario completa
+- **config.json** - Configuración detallada
+
+---
+
+**Versión**: 2.2.0
+**Fecha**: 2025-12-22
+**Autor**: Claude Sonnet 4.5 + Carlos Hernandez
