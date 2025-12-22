@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-12-22
+
+### Added
+- **Docker Development Environment Command**: New `/scaffold:docker-dev` command for complete Docker setup
+  - Generates `Dockerfile.dev` for backend (Python 3.11-slim with hot reload)
+  - Generates `Dockerfile.dev` for frontend (Node 18-alpine with Vite HMR)
+  - Generates `docker-compose.dev.yml` with multi-service orchestration
+  - Generates `.dockerignore` files for backend and frontend
+  - Generates helper scripts (`docker-start.sh/bat`, `docker-stop.sh/bat`)
+  - Generates `DOCKER-README.md` with complete documentation
+  - Updates `.gitignore` with Docker-specific exclusions
+  - New command file: `core/commands/scaffold/docker-dev.md` (280+ lines)
+
+- **Docker Templates**: 11 new Mustache templates for Docker infrastructure
+  - `templates/docker/backend.Dockerfile.dev.tmpl` - Backend container
+  - `templates/docker/frontend.Dockerfile.dev.tmpl` - Frontend container
+  - `templates/docker/docker-compose.dev.yml.tmpl` - Service orchestration (150+ lines)
+  - `templates/docker/backend.dockerignore.tmpl` - Backend exclusions
+  - `templates/docker/frontend.dockerignore.tmpl` - Frontend exclusions
+  - `templates/docker/DOCKER-README.md.tmpl` - Documentation (300+ lines)
+  - `templates/docker/gitignore-docker.tmpl` - Git ignore additions
+  - `templates/docker/scripts/docker-start.sh.tmpl` - Linux/Mac start script
+  - `templates/docker/scripts/docker-start.bat.tmpl` - Windows start script
+  - `templates/docker/scripts/docker-stop.sh.tmpl` - Linux/Mac stop script
+  - `templates/docker/scripts/docker-stop.bat.tmpl` - Windows stop script
+
+### Features
+- **Multi-Database Docker Services**:
+  - MySQL 8.0 container with healthcheck
+  - PostgreSQL 14 container with healthcheck
+  - SQL Server 2019 container with healthcheck
+  - SQLite support (no container, file-based)
+  - Automatic selection based on `claude.config.json`
+
+- **Hot Reload Development**:
+  - Backend: Uvicorn with `--reload` flag watching Python files
+  - Frontend: Vite HMR (Hot Module Replacement) with instant updates
+  - Code changes reflect immediately without rebuild
+
+- **Smart Volume Management**:
+  - **Code**: Bind mounts for instant changes (./backend → /app, ./frontend → /app)
+  - **Dependencies**: Named volumes for performance (backend-venv, frontend-node-modules)
+  - **Database**: Named volume for data persistence (db-data)
+
+- **Service Health Checks**:
+  - Database health verification before backend starts
+  - Automatic dependency ordering in docker-compose
+  - Retry logic with configurable intervals
+
+- **Cross-Platform Scripts**:
+  - Bash scripts for Linux/Mac with service status checking
+  - Batch scripts for Windows with colored output
+  - Automatic .env validation
+  - Helpful error messages and troubleshooting tips
+
+- **Comprehensive Documentation**:
+  - Quick start guide
+  - Common commands reference
+  - Troubleshooting section
+  - Database-specific instructions
+  - Volume management guide
+
+### Developer Experience
+- One command creates complete Docker development environment
+- No manual Docker configuration needed
+- Consistent environment across all team members
+- Database included and configured automatically
+- Hot reload works out of the box
+- Easy to start/stop with helper scripts
+- Complete documentation generated
+
+### Technical Details
+- Total lines added: ~1,030 lines of code and documentation
+- Templates use Mustache variables from `claude.config.json`
+- Conditional database service generation (SQLite excluded)
+- Network isolation with shared bridge network
+- Platform-agnostic (Windows, macOS, Linux)
+
 ## [1.0.3] - 2025-12-22
 
 ### Added
@@ -250,6 +328,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready for production use in hexagonal architecture + FSD projects
 - Fully parametrized with zero hard-coded references
 
+[1.0.4]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.0...v1.0.1
