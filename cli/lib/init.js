@@ -1227,13 +1227,22 @@ async function frontendInitialScaffolder(projectRoot, config, templatesRoot) {
 /**
  * Scaffolder: Backend Initial Structure
  */
-async function backendInitialScaffolder(projectRoot, config) {
+async function backendInitialScaffolder(projectRoot, config, templatesRoot) {
+  const templateVars = generateTemplateVariables(config);
+  const backendInitTemplatesDir = path.join(templatesRoot, 'backend', 'init');
   const backendDir = path.join(projectRoot, config.stack.backend.dirName);
 
   // Asegurar que exista el directorio backend
   await fs.ensureDir(backendDir);
 
-  // Crear __init__.py en directorios principales
+  // 1. Generar requirements.txt base (FastAPI, uvicorn, etc.)
+  await processTemplateFile(
+    path.join(backendInitTemplatesDir, 'requirements.txt.tmpl'),
+    path.join(backendDir, 'requirements.txt'),
+    templateVars
+  );
+
+  // 2. Crear __init__.py en directorios principales
   const directories = [
     backendDir,
     path.join(backendDir, 'domain'),
@@ -1378,7 +1387,7 @@ async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, o
 
     const backendSpinner = ora('Generating backend initial structure...').start();
     try {
-      await backendInitialScaffolder(projectRoot, config);
+      await backendInitialScaffolder(projectRoot, config, templatesRoot);
       backendSpinner.succeed('Backend initial structure created');
       results.backendInit = true;
     } catch (error) {
