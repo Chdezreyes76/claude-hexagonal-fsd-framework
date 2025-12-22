@@ -99,8 +99,8 @@ claude-framework init
 
 ## Version
 
-- Current: 1.0.0
-- Status: Initial Release
+- Current: 1.0.3
+- Status: Stable
 
 ## License
 

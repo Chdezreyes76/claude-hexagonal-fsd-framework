@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-22
+
+### Added
+- **Backend Core Scaffolding Command**: New `/scaffold:backend-core` command for generating complete backend infrastructure
+  - Generates `core/settings.py` - Centralized configuration with Pydantic and .env support
+  - Generates `core/database/` - Database connection and session management
+    - `connection.py` - Multi-database engine setup (MySQL, PostgreSQL, SQLServer, SQLite)
+    - `session.py` - Session manager with FastAPI dependency injection
+  - Generates `core/logging/` - Professional logging infrastructure
+    - `context.py` - Correlation IDs and request context tracking
+    - `formatters.py` - JSON and Console formatters with colors
+    - `logger.py` - Logger factory and centralized setup
+  - Generates `.env.example` - Complete environment variables template
+  - Updates `requirements.txt` with necessary dependencies
+  - New command file: `core/commands/scaffold/backend-core.md` (400+ lines of documentation)
+
+- **Backend Core Templates**: 11 new Mustache templates for backend infrastructure
+  - `templates/backend/core/__init__.py.tmpl` - Core package exports
+  - `templates/backend/core/settings.py.tmpl` - Multi-DB configuration (170 lines)
+  - `templates/backend/core/database/__init__.py.tmpl` - Database package
+  - `templates/backend/core/database/connection.py.tmpl` - Database engine (80 lines)
+  - `templates/backend/core/database/session.py.tmpl` - Session management (70 lines)
+  - `templates/backend/core/logging/__init__.py.tmpl` - Logging package
+  - `templates/backend/core/logging/context.py.tmpl` - Context tracking (120 lines)
+  - `templates/backend/core/logging/formatters.py.tmpl` - Log formatters (150 lines)
+  - `templates/backend/core/logging/logger.py.tmpl` - Logger factory (140 lines)
+  - `templates/backend/core/env.example.tmpl` - Environment template
+  - `templates/backend/core/requirements-core.txt.tmpl` - Dependencies
+
+### Features
+- **Multi-Database Support**: Automatic configuration for:
+  - MySQL (using pymysql)
+  - PostgreSQL (using psycopg2)
+  - SQL Server (using pyodbc)
+  - SQLite (for development/testing)
+- **Connection Pooling**: Configurable pool size, overflow, timeout, and recycling
+- **Structured Logging**:
+  - Correlation ID tracking for request tracing
+  - Request context (user_id, endpoint, method, IP address)
+  - JSON formatter for production (ELK-ready)
+  - Console formatter with colors for development
+  - Rotating file handler support
+  - External logger filtering (SQLAlchemy, Uvicorn, etc.)
+- **Environment-Based Configuration**: Pydantic settings with .env file support
+- **FastAPI Integration**: Ready-to-use dependency injection with `get_db()`
+- **Hexagonal Architecture Compatible**: Follows ports & adapters pattern
+
+### Developer Experience
+- One command generates complete backend infrastructure
+- No manual configuration needed
+- Database-agnostic (switch DB types easily)
+- Production-ready logging from day one
+- Type-safe configuration with Pydantic
+- Comprehensive documentation with usage examples
+
+### Technical Details
+- Total lines added: ~1,117 lines of code and documentation
+- Templates use Mustache variables from `claude.config.json`
+- Automatic dependency detection based on database type
+- Compatible with existing hexagonal architecture structure
+
 ## [1.0.2] - 2025-12-22
 
 ### Added
@@ -189,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready for production use in hexagonal architecture + FSD projects
 - Fully parametrized with zero hard-coded references
 
+[1.0.3]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Chdezreyes76/claude-hexagonal-fsd-framework/releases/tag/v1.0.0
