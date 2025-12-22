@@ -1103,7 +1103,7 @@ async function domainScaffolder(projectRoot, config, domainName, templatesRoot) 
   await fs.ensureDir(entityDir);
 
   await processTemplateFile(
-    path.join(frontendTemplatesDir, 'entity-types.ts.tmpl'),
+    path.join(frontendTemplatesDir, 'types.ts.tmpl'),
     path.join(entityDir, 'types.ts'),
     templateVars
   );
