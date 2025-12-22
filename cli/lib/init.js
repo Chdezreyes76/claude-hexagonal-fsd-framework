@@ -4,9 +4,10 @@ const ora = require('ora');
 const fs = require('fs-extra');
 const path = require('path');
 const { generateConfig, generateTemplateVariables } = require('./config-generator');
-const { processTemplateDirectory } = require('./template-processor');
+const { processTemplateDirectory, processTemplateFile } = require('./template-processor');
 const { validateConfig, validateProjectStructure, formatValidationErrors, validateExistingProject, formatValidationWarnings } = require('./validator');
-const { isValidEmail, isValidPort } = require('./utils');
+const { isValidEmail, isValidPort, generateNamingVariants } = require('./utils');
+const Mustache = require('mustache');
 const { detectProjectStructure, generateDetectionSummary } = require('./project-detector');
 
 /**
@@ -600,7 +601,8 @@ async function initWizard(targetProjectPath, options = {}) {
                             scaffoldAnswers.scaffoldFirstDomain;
 
       if (hasScaffolding) {
-        await executeInitialScaffolding(targetProjectPath, config, scaffoldAnswers, options);
+        const scaffoldResults = await executeInitialScaffolding(targetProjectPath, config, scaffoldAnswers, options);
+        scaffoldAnswers.results = scaffoldResults;
       }
     }
 
@@ -748,49 +750,537 @@ async function updateGitignore(projectRoot) {
 }
 
 /**
+ * Scaffolder: Docker Development Environment
+ */
+async function dockerScaffolder(projectRoot, config, templatesRoot) {
+  const templateVars = generateTemplateVariables(config);
+
+  // Agregar condicionales para docker-compose según tipo de DB
+  const dbType = config.stack.database.type;
+  templateVars.if_mysql = dbType === 'mysql';
+  templateVars.if_postgresql = dbType === 'postgresql';
+  templateVars.if_sqlserver = dbType === 'sqlserver';
+  templateVars.if_sqlite = dbType === 'sqlite';
+  templateVars.if_not_sqlite = dbType !== 'sqlite';
+
+  const dockerTemplatesDir = path.join(templatesRoot, 'docker');
+  const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+  const frontendDir = path.join(projectRoot, config.stack.frontend.dirName);
+
+  // 1. Crear Dockerfiles
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'backend.Dockerfile.dev.tmpl'),
+    path.join(backendDir, 'Dockerfile.dev'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'frontend.Dockerfile.dev.tmpl'),
+    path.join(frontendDir, 'Dockerfile.dev'),
+    templateVars
+  );
+
+  // 2. Crear .dockerignore files
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'backend.dockerignore.tmpl'),
+    path.join(backendDir, '.dockerignore'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'frontend.dockerignore.tmpl'),
+    path.join(frontendDir, '.dockerignore'),
+    templateVars
+  );
+
+  // 3. Generar docker-compose.dev.yml
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'docker-compose.dev.yml.tmpl'),
+    path.join(projectRoot, 'docker-compose.dev.yml'),
+    templateVars
+  );
+
+  // 4. Crear scripts helper
+  const scriptsDir = path.join(projectRoot, 'scripts');
+  await fs.ensureDir(scriptsDir);
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'scripts', 'docker-start.sh.tmpl'),
+    path.join(scriptsDir, 'docker-start.sh'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'scripts', 'docker-start.bat.tmpl'),
+    path.join(scriptsDir, 'docker-start.bat'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'scripts', 'docker-stop.sh.tmpl'),
+    path.join(scriptsDir, 'docker-stop.sh'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'scripts', 'docker-stop.bat.tmpl'),
+    path.join(scriptsDir, 'docker-stop.bat'),
+    templateVars
+  );
+
+  // 5. Crear documentación
+  await processTemplateFile(
+    path.join(dockerTemplatesDir, 'DOCKER-README.md.tmpl'),
+    path.join(projectRoot, 'DOCKER-README.md'),
+    templateVars
+  );
+
+  // 6. Actualizar .gitignore con entradas de Docker
+  const gitignorePath = path.join(projectRoot, '.gitignore');
+  const dockerGitignoreTemplate = await fs.readFile(
+    path.join(dockerTemplatesDir, 'gitignore-docker.tmpl'),
+    'utf-8'
+  );
+  const dockerGitignoreContent = Mustache.render(dockerGitignoreTemplate, templateVars);
+
+  let gitignoreContent = '';
+  if (await fs.pathExists(gitignorePath)) {
+    gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+
+    // Solo agregar si no existe ya sección Docker
+    if (!gitignoreContent.includes('# Docker')) {
+      gitignoreContent += '\n' + dockerGitignoreContent;
+      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
+    }
+  } else {
+    await fs.writeFile(gitignorePath, dockerGitignoreContent, 'utf-8');
+  }
+}
+
+/**
+ * Scaffolder: Backend Core Infrastructure
+ */
+async function backendCoreScaffolder(projectRoot, config, templatesRoot) {
+  const templateVars = generateTemplateVariables(config);
+
+  // Agregar condicionales para conexión de DB según tipo
+  const dbType = config.stack.database.type;
+  templateVars.if_mysql = dbType === 'mysql';
+  templateVars.if_postgresql = dbType === 'postgresql';
+  templateVars.if_sqlserver = dbType === 'sqlserver';
+  templateVars.if_sqlite = dbType === 'sqlite';
+
+  const backendCoreTemplatesDir = path.join(templatesRoot, 'backend', 'core');
+  const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+  const coreDir = path.join(backendDir, 'core');
+
+  // 1. Crear estructura de directorios
+  await fs.ensureDir(path.join(coreDir, 'database'));
+  await fs.ensureDir(path.join(coreDir, 'logging'));
+
+  // 2. Generar archivos core
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, '__init__.py.tmpl'),
+    path.join(coreDir, '__init__.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'settings.py.tmpl'),
+    path.join(coreDir, 'settings.py'),
+    templateVars
+  );
+
+  // 3. Generar archivos database
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'database', '__init__.py.tmpl'),
+    path.join(coreDir, 'database', '__init__.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'database', 'connection.py.tmpl'),
+    path.join(coreDir, 'database', 'connection.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'database', 'session.py.tmpl'),
+    path.join(coreDir, 'database', 'session.py'),
+    templateVars
+  );
+
+  // 4. Generar archivos logging
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'logging', '__init__.py.tmpl'),
+    path.join(coreDir, 'logging', '__init__.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'logging', 'context.py.tmpl'),
+    path.join(coreDir, 'logging', 'context.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'logging', 'formatters.py.tmpl'),
+    path.join(coreDir, 'logging', 'formatters.py'),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'logging', 'logger.py.tmpl'),
+    path.join(coreDir, 'logging', 'logger.py'),
+    templateVars
+  );
+
+  // 5. Generar .env.example
+  await processTemplateFile(
+    path.join(backendCoreTemplatesDir, 'env.example.tmpl'),
+    path.join(backendDir, '.env.example'),
+    templateVars
+  );
+
+  // 6. Actualizar requirements.txt
+  const requirementsPath = path.join(backendDir, 'requirements.txt');
+  const requirementsCoreTemplate = await fs.readFile(
+    path.join(backendCoreTemplatesDir, 'requirements-core.txt.tmpl'),
+    'utf-8'
+  );
+  const requirementsCoreContent = Mustache.render(requirementsCoreTemplate, templateVars);
+
+  let requirementsContent = '';
+  if (await fs.pathExists(requirementsPath)) {
+    requirementsContent = await fs.readFile(requirementsPath, 'utf-8');
+
+    // Agregar solo si no existen ya (evitar duplicados)
+    const newRequirements = requirementsCoreContent.split('\n').filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return true;
+      return !requirementsContent.includes(trimmed.split('>=')[0]);
+    });
+
+    if (newRequirements.length > 0) {
+      requirementsContent += '\n' + newRequirements.join('\n');
+      await fs.writeFile(requirementsPath, requirementsContent, 'utf-8');
+    }
+  } else {
+    await fs.writeFile(requirementsPath, requirementsCoreContent, 'utf-8');
+  }
+}
+
+/**
+ * Scaffolder: Business Domain
+ */
+async function domainScaffolder(projectRoot, config, domainName, templatesRoot) {
+  const templateVars = generateTemplateVariables(config);
+
+  // Generar variantes del nombre del dominio
+  const domainNaming = generateNamingVariants(domainName);
+  templateVars.domain = domainNaming.snake;
+  templateVars.Domain = domainNaming.pascal;
+  templateVars.domains = domainNaming.snake + 's'; // plural para rutas
+  templateVars.DOMAIN = domainNaming.snake.toUpperCase();
+
+  const backendTemplatesDir = path.join(templatesRoot, 'backend');
+  const frontendTemplatesDir = path.join(templatesRoot, 'frontend');
+  const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+  const frontendDir = path.join(projectRoot, config.stack.frontend.dirName);
+
+  // === BACKEND ===
+
+  // 1. Entity
+  const entitiesDir = path.join(backendDir, 'domain', 'entities');
+  await fs.ensureDir(entitiesDir);
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'entity.py.tmpl'),
+    path.join(entitiesDir, `${domainNaming.snake}.py`),
+    templateVars
+  );
+
+  // 2. DTOs
+  const dtosDir = path.join(backendDir, 'application', 'dtos', domainNaming.snake);
+  await fs.ensureDir(dtosDir);
+  await fs.writeFile(path.join(dtosDir, '__init__.py'), '');
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'request_dto.py.tmpl'),
+    path.join(dtosDir, `${domainNaming.snake}_request_dto.py`),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'response_dto.py.tmpl'),
+    path.join(dtosDir, `${domainNaming.snake}_response_dto.py`),
+    templateVars
+  );
+
+  // 3. Port
+  const portsDir = path.join(backendDir, 'application', 'ports', domainNaming.snake);
+  await fs.ensureDir(portsDir);
+  await fs.writeFile(path.join(portsDir, '__init__.py'), '');
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'port.py.tmpl'),
+    path.join(portsDir, `${domainNaming.snake}_port.py`),
+    templateVars
+  );
+
+  // 4. Use Cases
+  const useCasesDir = path.join(backendDir, 'application', 'use_cases', domainNaming.snake);
+  await fs.ensureDir(useCasesDir);
+  await fs.writeFile(path.join(useCasesDir, '__init__.py'), '');
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'use_case_crear.py.tmpl'),
+    path.join(useCasesDir, `crear_${domainNaming.snake}_use_case.py`),
+    templateVars
+  );
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'use_case_listar.py.tmpl'),
+    path.join(useCasesDir, `listar_${domainNaming.snake}_use_case.py`),
+    templateVars
+  );
+
+  // 5. Router
+  const routersDir = path.join(backendDir, 'adapter', 'inbound', 'api', 'routers');
+  await fs.ensureDir(routersDir);
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'router.py.tmpl'),
+    path.join(routersDir, `${domainNaming.snake}_router.py`),
+    templateVars
+  );
+
+  // 6. Dependency
+  const dependenciesDir = path.join(backendDir, 'adapter', 'inbound', 'api', 'dependencies', domainNaming.snake);
+  await fs.ensureDir(dependenciesDir);
+  await fs.writeFile(path.join(dependenciesDir, '__init__.py'), '');
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'dependency.py.tmpl'),
+    path.join(dependenciesDir, `${domainNaming.snake}_dependency.py`),
+    templateVars
+  );
+
+  // 7. Model
+  const modelsDir = path.join(backendDir, 'adapter', 'outbound', 'database', 'models');
+  await fs.ensureDir(modelsDir);
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'model.py.tmpl'),
+    path.join(modelsDir, `${domainNaming.snake}_model.py`),
+    templateVars
+  );
+
+  // 8. Repository
+  const repositoriesDir = path.join(backendDir, 'adapter', 'outbound', 'database', 'repositories');
+  await fs.ensureDir(repositoriesDir);
+
+  await processTemplateFile(
+    path.join(backendTemplatesDir, 'repository.py.tmpl'),
+    path.join(repositoriesDir, `${domainNaming.snake}_repository.py`),
+    templateVars
+  );
+
+  // === FRONTEND ===
+
+  // 1. Entity types
+  const entityDir = path.join(frontendDir, 'src', 'entities', domainNaming.snake, 'model');
+  await fs.ensureDir(entityDir);
+
+  await processTemplateFile(
+    path.join(frontendTemplatesDir, 'entity-types.ts.tmpl'),
+    path.join(entityDir, 'types.ts'),
+    templateVars
+  );
+
+  // 2. Service
+  const servicesDir = path.join(frontendDir, 'src', 'services');
+  await fs.ensureDir(servicesDir);
+
+  await processTemplateFile(
+    path.join(frontendTemplatesDir, 'service.ts.tmpl'),
+    path.join(servicesDir, `${domainNaming.snake}.service.ts`),
+    templateVars
+  );
+
+  // 3. Hook
+  const hooksDir = path.join(frontendDir, 'src', 'hooks');
+  await fs.ensureDir(hooksDir);
+
+  await processTemplateFile(
+    path.join(frontendTemplatesDir, 'hook.ts.tmpl'),
+    path.join(hooksDir, `use${domainNaming.pascal}.ts`),
+    templateVars
+  );
+
+  // 4. Page
+  const pagesDir = path.join(frontendDir, 'src', 'pages', domainNaming.pascal);
+  await fs.ensureDir(pagesDir);
+
+  await processTemplateFile(
+    path.join(frontendTemplatesDir, 'page.tsx.tmpl'),
+    path.join(pagesDir, `${domainNaming.pascal}Page.tsx`),
+    templateVars
+  );
+}
+
+/**
+ * Scaffolder: Main Application
+ */
+async function mainAppScaffolder(projectRoot, config) {
+  const templateVars = generateTemplateVariables(config);
+  const backendDir = path.join(projectRoot, config.stack.backend.dirName);
+
+  // Crear main.py básico si no existe
+  const mainPath = path.join(backendDir, 'main.py');
+
+  if (await fs.pathExists(mainPath)) {
+    return; // No sobrescribir si ya existe
+  }
+
+  const mainContent = `"""
+${config.project.name} - Main Application
+${config.project.description || ''}
+
+FastAPI application with hexagonal architecture.
+"""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from core.logging import setup_logging, disable_external_loggers
+from core import settings
+
+# Inicializar logging
+setup_logging(level=settings.LOG_LEVEL, format_type=settings.LOG_FORMAT)
+disable_external_loggers()
+
+# Crear aplicación
+app = FastAPI(
+    title="${config.project.name}",
+    description="${config.project.description || ''}",
+    version="${config.project.version}",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:${config.stack.frontend.port}"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Registrar routers
+# TODO: Importar y registrar routers de dominios
+# from adapter.inbound.api.routers import example_router
+# app.include_router(example_router.router, prefix="/api/v1", tags=["example"])
+
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {
+        "name": "${config.project.name}",
+        "version": "${config.project.version}",
+        "status": "running"
+    }
+
+@app.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=${config.stack.backend.port},
+        reload=True,
+        log_config=None  # Use our custom logging
+    )
+`;
+
+  await fs.writeFile(mainPath, mainContent, 'utf-8');
+}
+
+/**
  * Ejecuta scaffolding inicial para proyectos nuevos
  */
 async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, options = {}) {
   console.log(chalk.yellow.bold('\n⚙️  Executing Initial Scaffolding...\n'));
 
-  try {
-    // TODO: Implementar scaffolders reales
-    // Por ahora, solo mostrar qué se haría
+  const frameworkRoot = options.frameworkRoot || path.resolve(__dirname, '..', '..');
+  const templatesRoot = path.join(frameworkRoot, 'templates');
 
+  const results = {
+    docker: false,
+    backendCore: false,
+    domain: false,
+    mainApp: false
+  };
+
+  try {
+    // 1. Generar Docker environment
     if (scaffoldAnswers.generateDocker) {
       const spinner = ora('Generating Docker development environment...').start();
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular trabajo
-      spinner.succeed('Docker environment configuration ready');
-      console.log(chalk.gray('  Note: Docker scaffolder will be implemented soon'));
+      try {
+        await dockerScaffolder(projectRoot, config, templatesRoot);
+        spinner.succeed('Docker environment created');
+        results.docker = true;
+      } catch (error) {
+        spinner.fail('Docker generation failed');
+        throw error;
+      }
     }
 
+    // 2. Generar Backend Core
     if (scaffoldAnswers.generateBackendCore) {
       const spinner = ora('Generating backend core infrastructure...').start();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      spinner.succeed('Backend core configuration ready');
-      console.log(chalk.gray('  Note: Backend core scaffolder will be implemented soon'));
+      try {
+        await backendCoreScaffolder(projectRoot, config, templatesRoot);
+        spinner.succeed('Backend core infrastructure created');
+        results.backendCore = true;
+      } catch (error) {
+        spinner.fail('Backend core generation failed');
+        throw error;
+      }
     }
 
-    if (scaffoldAnswers.scaffoldFirstDomain) {
+    // 3. Scaffold First Domain
+    if (scaffoldAnswers.scaffoldFirstDomain && scaffoldAnswers.firstDomain) {
       const spinner = ora(`Scaffolding domain: ${scaffoldAnswers.firstDomain}...`).start();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      spinner.succeed(`Domain ${scaffoldAnswers.firstDomain} configuration ready`);
-      console.log(chalk.gray('  Note: Domain scaffolder will be implemented soon'));
+      try {
+        await domainScaffolder(projectRoot, config, scaffoldAnswers.firstDomain, templatesRoot);
+        spinner.succeed(`Domain "${scaffoldAnswers.firstDomain}" scaffolded`);
+        results.domain = scaffoldAnswers.firstDomain;
+      } catch (error) {
+        spinner.fail(`Domain scaffolding failed`);
+        throw error;
+      }
     }
 
+    // 4. Generate Main App
     if (scaffoldAnswers.generateMainApp) {
       const spinner = ora('Generating main application...').start();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      spinner.succeed('Main application configuration ready');
-      console.log(chalk.gray('  Note: Main app scaffolder will be implemented soon'));
+      try {
+        await mainAppScaffolder(projectRoot, config);
+        spinner.succeed('Main application (main.py) created');
+        results.mainApp = true;
+      } catch (error) {
+        spinner.fail('Main app generation failed');
+        throw error;
+      }
     }
 
-    console.log(chalk.green('\n✓ Initial scaffolding planned!'));
-    console.log(chalk.yellow('  Scaffolders are queued for implementation.'));
-    console.log(chalk.yellow('  You can run scaffold commands manually for now:\n'));
-    console.log(chalk.gray('    /scaffold:docker-dev'));
-    console.log(chalk.gray('    /scaffold:backend-core'));
-    console.log(chalk.gray('    /scaffold:new-domain <name>\n'));
+    console.log(chalk.green('\n✓ Initial scaffolding completed!\n'));
+
+    return results;
 
   } catch (error) {
     console.error(chalk.red('\n❌ Error during scaffolding:'));
@@ -799,7 +1289,12 @@ async function executeInitialScaffolding(projectRoot, config, scaffoldAnswers, o
       console.error(chalk.gray(error.stack));
     }
     console.log(chalk.yellow('\n⚠️  Scaffolding failed, but framework is installed.'));
-    console.log(chalk.yellow('   You can run scaffold commands manually.\n'));
+    console.log(chalk.yellow('   You can run scaffold commands manually:\n'));
+    console.log(chalk.gray('    /scaffold:docker-dev'));
+    console.log(chalk.gray('    /scaffold:backend-core'));
+    console.log(chalk.gray('    /scaffold:new-domain <name>\n'));
+
+    return results;
   }
 }
 
@@ -826,15 +1321,16 @@ function showSuccessMessage(projectRoot, config, isNewProject = true, scaffoldAn
   }
 
   // Mostrar qué se generó (para proyectos nuevos)
-  if (isNewProject && Object.keys(scaffoldAnswers).length > 0) {
+  if (isNewProject && scaffoldAnswers.results) {
+    const results = scaffoldAnswers.results;
     const generated = [];
-    if (scaffoldAnswers.generateDocker) generated.push('Docker environment');
-    if (scaffoldAnswers.generateBackendCore) generated.push('Backend core');
-    if (scaffoldAnswers.scaffoldFirstDomain) generated.push(`Domain: ${scaffoldAnswers.firstDomain}`);
-    if (scaffoldAnswers.generateMainApp) generated.push('Main application');
+    if (results.docker) generated.push('Docker environment');
+    if (results.backendCore) generated.push('Backend core infrastructure');
+    if (results.domain) generated.push(`Domain: ${results.domain}`);
+    if (results.mainApp) generated.push('Main application (main.py)');
 
     if (generated.length > 0) {
-      console.log(chalk.cyan('Scaffolding planned:'));
+      console.log(chalk.cyan('Scaffolding completed:'));
       generated.forEach(item => console.log(chalk.white(`  ✓ ${item}`)));
       console.log('');
     }
