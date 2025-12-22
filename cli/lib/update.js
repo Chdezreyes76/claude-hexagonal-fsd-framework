@@ -191,10 +191,28 @@ async function updateFramework(targetPath, options = {}) {
     }
 
     if (!dryRun) {
-      // Process all .tmpl files in .claude directory (in-place)
-      const result = await processTemplateDirectory(claudeDir, claudeDir, templateVars);
-      const processedCount = result.processed?.length || 0;
-      templateSpinner.succeed(chalk.green(`✅ Templates processed (${processedCount} files)`));
+      // Process templates only in framework directories (agents, commands, skills)
+      let totalProcessed = 0;
+      const frameworkDirs = ['agents', 'commands', 'skills'];
+
+      for (const dir of frameworkDirs) {
+        const dirPath = path.join(claudeDir, dir);
+        if (fs.existsSync(dirPath)) {
+          const result = await processTemplateDirectory(dirPath, dirPath, templateVars);
+          totalProcessed += result.processed?.length || 0;
+        }
+      }
+
+      // Also process settings.json.tmpl if it exists
+      const settingsTemplate = path.join(claudeDir, 'settings.json.tmpl');
+      if (fs.existsSync(settingsTemplate)) {
+        const processTemplateFile = require('./template-processor').processTemplateFile;
+        const settingsOutput = path.join(claudeDir, 'settings.json');
+        await processTemplateFile(settingsTemplate, settingsOutput, templateVars);
+        totalProcessed++;
+      }
+
+      templateSpinner.succeed(chalk.green(`✅ Templates processed (${totalProcessed} files)`));
     } else {
       templateSpinner.succeed(chalk.yellow(`✅ Templates ready to process (dry run)`));
     }
