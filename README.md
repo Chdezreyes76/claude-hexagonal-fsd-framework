@@ -1,5 +1,19 @@
 # Claude Hexagonal+FSD Framework
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Version](https://img.shields.io/github/v/tag/Chdezreyes76/claude-hexagonal-fsd-framework?label=version&color=green)
+![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
+![Platform](https://img.shields.io/badge/platform-win%20%7C%20mac%20%7C%20linux-lightgrey.svg)
+
+![Python](https://img.shields.io/badge/Python-3.11-3776ab.svg?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Hexagonal-009688.svg?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb.svg?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-FSD-3178c6.svg?logo=typescript&logoColor=white)
+
+![Status](https://img.shields.io/badge/status-stable-success.svg)
+![Maintenance](https://img.shields.io/badge/maintained-yes-success.svg)
+![GitHub Stars](https://img.shields.io/github/stars/Chdezreyes76/claude-hexagonal-fsd-framework?style=social)
+
 Comprehensive development automation framework for building full-stack applications with:
 - **Backend**: FastAPI + Hexagonal Architecture (Ports & Adapters)
 - **Frontend**: React 19 + TypeScript + Feature-Sliced Design
