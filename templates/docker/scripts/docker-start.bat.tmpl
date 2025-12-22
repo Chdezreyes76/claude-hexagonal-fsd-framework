@@ -8,6 +8,9 @@ echo  Starting {{projectName}} Dev Environment
 echo ======================================
 echo.
 
+REM Change to project root directory
+cd /d "%~dp0\.."
+
 REM Check if Docker is running
 docker info >nul 2>&1
 if errorlevel 1 (
