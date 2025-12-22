@@ -1,7 +1,7 @@
 ﻿---
 name: qa:review-done
 description: Revisar automáticamente todos los issues en Done de un proyecto y moverlos a Reviewed si pasan QA. Envía email con resumen al completar.
-allowed-tools: Read, Glob, Grep, Bash(gh:*), Bash(cd:*), Bash(npx:*), Bash(curl:*), MCPSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot
+allowed-tools: Read, Glob, Grep, Bash(gh:*), Bash(cd:*), Bash(npx:*), Bash(curl:*), MCPSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_network_requests
 agent-type: qa-validator
 retry-attempts: 0
 ---
@@ -26,9 +26,12 @@ Agente autónomo que revisa y verifica todos los issues en columna "Done" de un 
    - Ejecutar compilación TypeScript (frontend)
    - Abrir navegador y navegar a páginas relevantes
    - Capturar y analizar errores de consola
+   - **Analizar network requests (POST/PUT/DELETE) y validar responses**
+   - Verificar status codes, response bodies, y tiempos de respuesta
+   - Detectar errores de API (4xx, 5xx, CORS, timeouts)
    - Tomar screenshots como evidencia
 3. ✅ Mover issues aprobados a columna "Reviewed"
-4. ✅ Generar reporte detallado con estadísticas
+4. ✅ Generar reporte detallado con estadísticas (incluye análisis de network)
 5. ✅ **Enviar email a {{userEmail}} con resumen**
 
 ## Proceso de Verificación por Issue
@@ -137,6 +140,278 @@ await mcp__playwright__browser_take_screenshot()
 - ✅ PASS: 0 errores de consola
 - ❌ FAIL: Errores en consola → Mantener en Done
 
+#### E. Análisis de Network Requests (API Validation)
+
+**IMPORTANTE:** Esta es la verificación MÁS CRÍTICA para validar que el backend y frontend se comunican correctamente.
+
+```javascript
+// 1. Capturar todas las network requests durante la navegación
+const networkRequests = await mcp__playwright__browser_network_requests()
+
+// 2. Filtrar y analizar POST requests
+const postRequests = networkRequests.filter(req => req.method === 'POST')
+
+// 3. Analizar cada POST request
+for (const request of postRequests) {
+  console.log(`Analyzing POST: ${request.url}`)
+  console.log(`Request Body: ${request.postData}`)
+  console.log(`Response Status: ${request.response.status}`)
+  console.log(`Response Body: ${request.response.body}`)
+}
+```
+
+**Criterios de Validación - POST Requests:**
+
+✅ **PASS si:**
+- Status code: 200 (OK), 201 (Created), 204 (No Content)
+- Response body es JSON válido (no HTML de error)
+- Response no contiene mensajes de error
+- Request body tiene estructura correcta
+- Headers incluyen `Content-Type: application/json`
+- Tiempo de respuesta < 5 segundos
+
+❌ **FAIL si:**
+- Status code: 4xx (Client Error), 5xx (Server Error)
+- Response body contiene `"error"`, `"message": "Internal Server Error"`
+- Response es HTML en lugar de JSON (indica error no manejado)
+- Request body tiene campos faltantes o inválidos
+- Timeout (> 10 segundos)
+
+**Ejemplo de Análisis Detallado:**
+
+```javascript
+// Analizar POST request a /api/v1/usuarios
+const usuariosPost = networkRequests.find(req =>
+  req.method === 'POST' && req.url.includes('/api/v1/usuarios')
+)
+
+if (usuariosPost) {
+  // Validar Request
+  const requestBody = JSON.parse(usuariosPost.postData)
+  console.log('✅ Request Body:', requestBody)
+
+  // Verificar campos requeridos
+  const requiredFields = ['nombre', 'email', 'rol']
+  const missingFields = requiredFields.filter(field => !requestBody[field])
+
+  if (missingFields.length > 0) {
+    console.log(`❌ FAIL: Missing fields: ${missingFields.join(', ')}`)
+    return { passed: false, reason: `Missing required fields: ${missingFields}` }
+  }
+
+  // Validar Response
+  const response = usuariosPost.response
+  console.log('Response Status:', response.status)
+  console.log('Response Body:', response.body)
+
+  if (response.status >= 400) {
+    console.log(`❌ FAIL: HTTP ${response.status} - ${response.statusText}`)
+    return {
+      passed: false,
+      reason: `API error: ${response.status} ${response.statusText}`,
+      response_body: response.body
+    }
+  }
+
+  // Validar que response es JSON válido
+  try {
+    const responseData = JSON.parse(response.body)
+
+    // Verificar que no es un error
+    if (responseData.error || responseData.message?.includes('error')) {
+      console.log(`❌ FAIL: Response contains error: ${responseData.message}`)
+      return { passed: false, reason: `API returned error: ${responseData.message}` }
+    }
+
+    // Verificar que el usuario fue creado (tiene ID)
+    if (!responseData.id && !responseData.usuario_id) {
+      console.log('❌ FAIL: Response missing user ID')
+      return { passed: false, reason: 'Created user missing ID in response' }
+    }
+
+    console.log('✅ PASS: POST request successful')
+    return {
+      passed: true,
+      user_id: responseData.id || responseData.usuario_id,
+      response_time: response.timing.duration
+    }
+
+  } catch (e) {
+    console.log(`❌ FAIL: Response is not valid JSON: ${e.message}`)
+    return { passed: false, reason: 'Response body is not valid JSON' }
+  }
+}
+```
+
+**Validaciones Específicas por Tipo de Request:**
+
+**POST /api/v1/usuarios (Crear Usuario):**
+```javascript
+// Request debe tener:
+{
+  "nombre": "string",
+  "email": "valid@email.com",
+  "rol": "ADMIN|USUARIO|VIEWER"
+}
+
+// Response debe ser 201 Created:
+{
+  "id": 123,
+  "nombre": "string",
+  "email": "valid@email.com",
+  "rol": "ADMIN",
+  "created_at": "2025-12-22T..."
+}
+
+// ❌ FAIL si:
+- Status: 400 (validación falla)
+- Status: 409 (email duplicado)
+- Status: 500 (error servidor)
+- Response: {"detail": "Email already exists"}
+```
+
+**POST /api/v1/centros-coste (Crear Centro de Costo):**
+```javascript
+// Request debe tener:
+{
+  "codigo": "CC001",
+  "nombre": "Centro Principal",
+  "descripcion": "..."
+}
+
+// Response debe ser 201 Created:
+{
+  "id": 456,
+  "codigo": "CC001",
+  "nombre": "Centro Principal",
+  "created_at": "2025-12-22T..."
+}
+
+// ❌ FAIL si:
+- Status: 400 (código inválido)
+- Status: 409 (código duplicado)
+- Response: {"detail": "Centro de costo already exists"}
+```
+
+**PUT /api/v1/usuarios/{id} (Actualizar Usuario):**
+```javascript
+// Request debe tener:
+{
+  "nombre": "new name",
+  "email": "new@email.com"
+}
+
+// Response debe ser 200 OK:
+{
+  "id": 123,
+  "nombre": "new name",
+  "email": "new@email.com",
+  "updated_at": "2025-12-22T..."
+}
+
+// ❌ FAIL si:
+- Status: 404 (usuario no existe)
+- Status: 400 (datos inválidos)
+```
+
+**DELETE /api/v1/usuarios/{id} (Eliminar Usuario):**
+```javascript
+// Response debe ser 204 No Content (sin body)
+// O 200 OK con confirmación
+
+// ❌ FAIL si:
+- Status: 404 (usuario no existe)
+- Status: 409 (usuario tiene dependencias)
+```
+
+**Verificación de Errores Comunes:**
+
+```javascript
+// 1. Backend no está corriendo
+if (networkRequests.some(req => req.response.status === 0 || req.error?.includes('ECONNREFUSED'))) {
+  console.log('❌ CRITICAL: Backend is not running!')
+  return { passed: false, reason: 'Backend server is not accessible' }
+}
+
+// 2. CORS errors
+if (networkRequests.some(req => req.error?.includes('CORS'))) {
+  console.log('❌ FAIL: CORS error detected')
+  return { passed: false, reason: 'CORS policy blocking requests' }
+}
+
+// 3. Authentication errors
+if (networkRequests.some(req => req.response.status === 401)) {
+  console.log('⚠️  WARNING: Authentication required')
+  return { passed: false, reason: '401 Unauthorized - check auth tokens' }
+}
+
+// 4. Validation errors
+const validationErrors = networkRequests.filter(req =>
+  req.response.status === 422 || req.response.body?.includes('validation')
+)
+if (validationErrors.length > 0) {
+  console.log('❌ FAIL: Validation errors in requests')
+  return {
+    passed: false,
+    reason: 'Request validation errors',
+    details: validationErrors.map(e => e.response.body)
+  }
+}
+
+// 5. Slow responses (performance issue)
+const slowRequests = networkRequests.filter(req =>
+  req.response.timing?.duration > 5000
+)
+if (slowRequests.length > 0) {
+  console.log(`⚠️  WARNING: ${slowRequests.length} slow requests (>5s)`)
+  // No falla QA pero se registra en reporte
+}
+```
+
+**Reporte de Network Requests:**
+
+```markdown
+### Network Analysis 🌐
+
+**Total Requests:** 25
+- GET: 15
+- POST: 5
+- PUT: 3
+- DELETE: 2
+
+**POST Requests Analysis:**
+
+#### ✅ /api/v1/usuarios (Create User)
+- Status: 201 Created
+- Response Time: 245ms
+- Request Body: ✅ Valid
+- Response Body: ✅ Valid JSON
+- User ID: 123
+
+#### ✅ /api/v1/centros-coste (Create Centro)
+- Status: 201 Created
+- Response Time: 189ms
+- Request Body: ✅ Valid
+- Response Body: ✅ Valid JSON
+- Centro ID: 456
+
+#### ❌ /api/v1/productos (Create Product)
+- Status: 500 Internal Server Error
+- Response Time: 1234ms
+- Error: "Database connection timeout"
+- **ACTION REQUIRED:** Fix database connection
+
+**Performance Summary:**
+- Average Response Time: 312ms ✅
+- Slowest Request: 1234ms (productos) ⚠️
+- Failed Requests: 1 ❌
+```
+
+**Criterios Finales con Network Analysis:**
+- ✅ PASS: Todos los POST/PUT/DELETE tienen status 2xx, responses válidas, sin errores
+- ⚠️ WARNING: Requests lentos (>3s) pero exitosos → Aprobar con nota
+- ❌ FAIL: Cualquier request con status 4xx/5xx → Mantener en Done
+
 ### PASO 3: Decisión y Acción
 
 #### ✅ SI TODAS LAS VERIFICACIONES PASAN:
@@ -149,6 +424,13 @@ await mcp__playwright__browser_take_screenshot()
     "files_exist": true,
     "typescript_compilation": "passed",
     "browser_errors": 0,
+    "network_requests": {
+      "total": 25,
+      "post_requests": 5,
+      "failed": 0,
+      "slow": 0,
+      "avg_response_time": 312
+    },
     "screenshots_taken": 2
   },
   "action": "MOVE_TO_REVIEWED"
@@ -212,6 +494,9 @@ mutation {
 - ✅ Archivos verificados: 3/3
 - ✅ TypeScript: Sin errores
 - ✅ Browser: 0 errores consola
+- ✅ Network: 5 POST requests, 0 errores, avg 245ms
+  - POST /api/v1/usuarios: 201 Created ✅
+  - GET /api/v1/usuarios: 200 OK ✅
 - ✅ Screenshots: 2
 - 🟢 **MOVED TO REVIEWED**
 
@@ -249,6 +534,9 @@ mutation {
 | Verificación de archivos | 15 | 15 | 0 |
 | Compilación TypeScript | 15 | 13 | 2 |
 | Errores de consola | 15 | 13 | 2 |
+| Network requests (POST/PUT/DELETE) | 75 | 70 | 5 |
+| API errors (4xx/5xx) | 15 | 13 | 2 |
+| Slow requests (>3s) | 15 | 14 | 1 |
 | Screenshots capturados | - | 45 | - |
 
 ## Próximos Pasos
