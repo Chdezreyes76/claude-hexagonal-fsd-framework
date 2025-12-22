@@ -142,6 +142,10 @@ function generateTemplateVariables(config) {
     dbVersion: config.stack.database.version,
     dbName: config.stack.database.name,
     dbPort: config.stack.database.port,
+    dbUser: config.stack.database.user || 'app_user',
+
+    // Also provide full stack object for nested access (e.g., {{stack.database.user}})
+    stack: config.stack,
 
     // Paths
     backendRoot: config.paths.backend.root,
