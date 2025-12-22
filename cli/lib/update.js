@@ -191,9 +191,10 @@ async function updateFramework(targetPath, options = {}) {
     }
 
     if (!dryRun) {
-      // Process all .tmpl files in .claude directory
-      const { processed } = await processTemplateDirectory(claudeDir, templateVars);
-      templateSpinner.succeed(chalk.green(`✅ Templates processed (${processed} files)`));
+      // Process all .tmpl files in .claude directory (in-place)
+      const result = await processTemplateDirectory(claudeDir, claudeDir, templateVars);
+      const processedCount = result.processed?.length || 0;
+      templateSpinner.succeed(chalk.green(`✅ Templates processed (${processedCount} files)`));
     } else {
       templateSpinner.succeed(chalk.yellow(`✅ Templates ready to process (dry run)`));
     }
