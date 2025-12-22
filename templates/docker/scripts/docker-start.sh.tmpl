@@ -26,9 +26,9 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-# Start containers
-echo "Starting containers..."
-docker-compose -f docker-compose.dev.yml up -d
+# Build and start containers
+echo "Building images and starting containers..."
+docker-compose -f docker-compose.dev.yml up -d --build
 
 # Wait for services to be ready
 echo ""

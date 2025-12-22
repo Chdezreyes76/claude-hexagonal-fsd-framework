@@ -33,9 +33,9 @@ if not exist ".env" (
     )
 )
 
-REM Start containers
-echo Starting containers...
-docker-compose -f docker-compose.dev.yml up -d
+REM Build and start containers
+echo Building images and starting containers...
+docker-compose -f docker-compose.dev.yml up -d --build
 
 REM Wait for services
 echo.
