@@ -1297,12 +1297,11 @@ FastAPI application with hexagonal architecture.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from core.logging import setup_logging, disable_external_loggers
+from core.logging import setup_logging
 from core import settings
 
 # Inicializar logging
 setup_logging(level=settings.LOG_LEVEL, format_type=settings.LOG_FORMAT)
-disable_external_loggers()
 
 # Crear aplicación
 app = FastAPI(
