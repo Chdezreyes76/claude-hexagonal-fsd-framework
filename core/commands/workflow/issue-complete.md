@@ -24,18 +24,34 @@ Ejecuta issues en bucle continuo hasta que el usuario detenga o no haya más iss
 /workflow:issue-complete --loop --max=3 --project=7  # Combinar ambos
 ```
 
-### Modo Totalmente Autónomo (Nuevo)
+### Modo Totalmente Autónomo ⭐ (Nuevo - Fases 4-6)
 Ejecuta el flujo completo sin intervención manual usando auto-selección y estrategias automáticas.
 ```
 /workflow:issue-complete --loop --max=10 --project=7 --autonomous
 ```
 
+El flag `--autonomous` es un **alias inteligente** que habilita automáticamente:
+- ✅ `--auto-select` - Auto-selecciona el issue más prioritario sin preguntar
+- ✅ `--auto-fix-reviews=2` - Hasta 2 ciclos de auto-corrección si code review falla (Fase 4)
+- ✅ `--skip-on-failure` - Salta issues que fallan en lugar de preguntar
+- ✅ `--auto-resolve-conflicts` - Intenta resolver conflictos git automáticamente (Fase 5)
+- ✅ `--save-session` - Guarda progreso después de cada issue (Fase 6)
+- ✅ `--timeout-per-issue=10` - Timeout de 10 minutos por issue (Fase 6)
+- ✅ `--max-consecutive-failures=3` - Circuit breaker después de 3 fallos (Fase 6)
+- ✅ `--epic-breakdown-on-failure` - Convierte issues complejos a Epics (Fase 2)
+
 **Parámetros disponibles**:
 - `--loop`: Activa modo bucle automático
 - `--max=N`: Limita a N issues como máximo
 - `--project=N`: Filtra solo issues del proyecto de GitHub #N
-- `--auto-select`: Auto-selecciona el issue #1 sin preguntar (implícito con --autonomous)
-- `--autonomous`: Alias que habilita todas las características autónomas (auto-select, auto-fix-reviews, etc.)
+- `--autonomous`: ⭐ Habilita todas las características autónomas con valores óptimos
+- `--auto-select`: Auto-selecciona el issue #1 sin preguntar
+- `--auto-fix-reviews=N`: Permite N ciclos de auto-corrección en code review (default: 2 con --autonomous)
+- `--auto-resolve-conflicts`: Intenta resolver conflictos de merge automáticamente
+- `--save-session[=path]`: Guarda sesión después de cada issue (default: `.claude/session/workflow-session.json`)
+- `--resume=path`: Reanuda sesión desde archivo JSON
+- `--timeout-per-issue=N`: Timeout en minutos por issue (default: 10 con --autonomous)
+- `--max-consecutive-failures=N`: Circuit breaker después de N fallos (default: 3 con --autonomous)
 
 **Cómo detener el bucle**:
 - Escribe "detener", "stop", "salir" o "exit" en cualquier momento
@@ -62,10 +78,9 @@ Ejecuta el flujo completo sin intervención manual usando auto-selección y estr
 Primero, detectar los flags de autonomía:
 
 ```javascript
-// Detectar flags en $ARGUMENTS
+// Detectar flags principales
 const loopMode = $ARGUMENTS.includes('--loop')
 const autonomousMode = $ARGUMENTS.includes('--autonomous')
-const autoSelect = $ARGUMENTS.includes('--auto-select') || autonomousMode
 
 // Extraer --max=N
 const maxMatch = $ARGUMENTS.match(/--max=(\d+)/)
@@ -75,18 +90,65 @@ const maxIssues = maxMatch ? parseInt(maxMatch[1]) : null
 const projectMatch = $ARGUMENTS.match(/--project=(\d+)/)
 const projectNumber = projectMatch ? parseInt(projectMatch[1]) : null
 
-// Fase 6: Nuevos parámetros de persistencia y circuit breakers
+// ============================================================
+// FASE 7: --autonomous es un ALIAS que activa todo lo siguiente
+// ============================================================
+
+// Auto-selección (Fase 1)
+const autoSelectExplicit = $ARGUMENTS.includes('--auto-select')
+const autoSelect = autoSelectExplicit || autonomousMode
+
+// Auto-corrección de code reviews (Fase 4)
+const autoFixMatch = $ARGUMENTS.match(/--auto-fix-reviews=(\d+)/)
+const autoFixReviews = autoFixMatch ? parseInt(autoFixMatch[1]) : (autonomousMode ? 2 : 0)
+
+// Skip on failure
+const skipOnFailure = $ARGUMENTS.includes('--skip-on-failure') || autonomousMode
+
+// Auto-resolución de conflictos (Fase 5)
+const autoResolveConflictsExplicit = $ARGUMENTS.includes('--auto-resolve-conflicts')
+const autoResolveConflicts = autoResolveConflictsExplicit || autonomousMode
+
+// Epic breakdown on failure (Fase 2)
+const epicBreakdownOnFailure = $ARGUMENTS.includes('--epic-breakdown-on-failure') || autonomousMode
+
+// Persistencia de sesión (Fase 6)
 const saveSessionMatch = $ARGUMENTS.match(/--save-session(?:=(.+))?/)
-const saveSession = saveSessionMatch ? (saveSessionMatch[1] || '.claude/session/workflow-session.json') : (loopMode ? '.claude/session/workflow-session.json' : null)
+const saveSession = saveSessionMatch
+  ? (saveSessionMatch[1] || '.claude/session/workflow-session.json')
+  : (autonomousMode ? '.claude/session/workflow-session.json' : null)
 
 const resumeMatch = $ARGUMENTS.match(/--resume=(.+)/)
 const resumeSessionPath = resumeMatch ? resumeMatch[1] : null
 
+// Timeout por issue (Fase 6)
 const timeoutMatch = $ARGUMENTS.match(/--timeout-per-issue=(\d+)/)
-const timeoutPerIssue = timeoutMatch ? parseInt(timeoutMatch[1]) : (autonomousMode ? 10 : null)  // Default: 10 minutos en modo autónomo
+const timeoutPerIssue = timeoutMatch
+  ? parseInt(timeoutMatch[1])
+  : (autonomousMode ? 10 : null)  // Default: 10 min en modo autónomo
 
+// Circuit breaker (Fase 6)
 const maxFailuresMatch = $ARGUMENTS.match(/--max-consecutive-failures=(\d+)/)
-const maxConsecutiveFailures = maxFailuresMatch ? parseInt(maxFailuresMatch[1]) : (autonomousMode ? 3 : null)  // Default: 3 en modo autónomo
+const maxConsecutiveFailures = maxFailuresMatch
+  ? parseInt(maxFailuresMatch[1])
+  : (autonomousMode ? 3 : null)  // Default: 3 en modo autónomo
+
+// ============================================================
+// Resumen de configuración cuando --autonomous está activo
+// ============================================================
+if (autonomousMode) {
+  console.log(`\n⚡ MODO AUTÓNOMO ACTIVADO`)
+  console.log(`   Configuración habilitada automáticamente:`)
+  console.log(`   ├─ Auto-selección: ✅`)
+  console.log(`   ├─ Auto-corrección reviews: ${autoFixReviews} ciclos`)
+  console.log(`   ├─ Skip on failure: ✅`)
+  console.log(`   ├─ Auto-resolve conflicts: ✅`)
+  console.log(`   ├─ Epic breakdown: ✅`)
+  console.log(`   ├─ Persistencia sesión: ✅`)
+  console.log(`   ├─ Timeout por issue: ${timeoutPerIssue} min`)
+  console.log(`   └─ Circuit breaker: ${maxConsecutiveFailures} fallos`)
+  console.log()
+}
 ```
 
 ### Inicializar o Reanudar Sesión (Nuevo - Fase 6)
@@ -142,11 +204,14 @@ if (!session) {
     issuesPendientes: [],
 
     // Auto-corrección (Fase 4)
-    autoFixReviews: autonomousMode ? 2 : 0,
-    skipOnFailure: autonomousMode,
+    autoFixReviews: autoFixReviews,
+    skipOnFailure: skipOnFailure,
 
     // Auto-resolución de conflictos (Fase 5)
-    autoResolveConflicts: $ARGUMENTS.includes('--auto-resolve-conflicts') || autonomousMode,
+    autoResolveConflicts: autoResolveConflicts,
+
+    // Epic breakdown (Fase 2)
+    epicBreakdownOnFailure: epicBreakdownOnFailure,
 
     // Circuit breaker (Fase 6)
     consecutiveFailures: 0,
@@ -1895,6 +1960,182 @@ Duración total: 3h 25m (incluyendo pausa de 2h)
   - Siempre usar --save-session en sesiones largas
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Ejemplo 8: Modo Autónomo Completo con --autonomous ⭐ (Nuevo - Fase 7)
+
+Muestra cómo usar el alias `--autonomous` para activar todas las características automáticamente:
+
+```
+Usuario: /workflow:issue-complete --loop --max=5 --project=7 --autonomous
+
+⚡ MODO AUTÓNOMO ACTIVADO
+   Configuración habilitada automáticamente:
+   ├─ Auto-selección: ✅
+   ├─ Auto-corrección reviews: 2 ciclos
+   ├─ Skip on failure: ✅
+   ├─ Auto-resolve conflicts: ✅
+   ├─ Epic breakdown: ✅
+   ├─ Persistencia sesión: ✅
+   ├─ Timeout por issue: 10 min
+   └─ Circuit breaker: 3 fallos
+
+🚀 Nueva sesión iniciada
+   Modo: Autónomo
+   Máximo: 5 issues
+   Proyecto: #7
+   Guardando en: .claude/session/workflow-session.json
+   Timeout: 10 minutos por issue
+   Circuit breaker: 3 fallos consecutivos
+
+[ISSUE 1/5]
+→ Auto-selecciona #180 [ALTA] Refactor authentication
+→ Implementa → PR #270 → Review ✅ → Merge ✅
+→ Duración: 4 minutos
+✅ Issue #180 completado (1/5)
+💾 Sesión guardada
+
+[ISSUE 2/5]
+→ Auto-selecciona #181 [MEDIA] Add export feature
+→ Implementa → PR #271
+→ Review: RECHAZADO
+
+🔄 Auto-Corrección: Ciclo 1/2
+   → Corrigiendo...
+   → Review: APROBADO ✅
+
+✅ Issue #181 completado (2/5) - Auto-corregido
+💾 Sesión guardada
+
+[ISSUE 3/5]
+→ Auto-selecciona #182 [ALTA] Update dependencies
+→ Implementa → PR #272 → Review ✅
+
+⚠️ Conflictos detectados en PR #272
+
+🔧 Estrategia 3: Análisis selectivo
+   ✓ Resuelto package.json (usando versión de master)
+   ✓ Resuelto package-lock.json (usando versión de master)
+
+✅ Conflictos resueltos, PR mergeado
+✅ Issue #182 completado (3/5) - Conflictos resueltos automáticamente
+💾 Sesión guardada
+
+[ISSUE 4/5]
+→ Auto-selecciona #183 [ALTA] Implement notification system (complejo)
+→ Implementa cambios... (muy complejo)
+→ Intento 1: Fallo
+→ Intento 2: Fallo
+→ Intento 3: Fallo
+
+❌ Issue #183 falló después de 3 intentos
+
+🎯 Issue demasiado complejo, convirtiendo a Epic...
+
+✅ Epic creado exitosamente:
+   Proyecto: #12 - "Epic: Implement notification system"
+   Issue original → Epic #183
+   Sub-issues creados: 8
+
+   1. #184 [backend] Create notification model
+   2. #185 [backend] Add notification endpoints
+   3. #186 [backend] Implement email service
+   4. #187 [backend] Add push notification service
+   5. #188 [frontend] Create notification UI
+   6. #189 [frontend] Add notification hooks
+   7. #190 [frontend] Implement notification center
+   8. #191 [fullstack] Integration tests
+
+💡 Resolver Epic con:
+   /workflow:issue-complete --loop --project=12 --autonomous
+
+⏭️ Continuando con siguiente issue del loop principal...
+💾 Sesión guardada
+
+[ISSUE 5/5]
+→ Auto-selecciona #192 [MEDIA] Fix user profile bug
+→ Implementa → PR #273 → Review ✅ → Merge ✅
+→ Duración: 3 minutos
+✅ Issue #192 completado (4/5)
+💾 Sesión guardada
+
+[Mostrar Resumen Final]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SESIÓN COMPLETADA EXITOSAMENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Duración total: 28 minutos
+
+📊 ESTADÍSTICAS FINALES:
+  Issues procesados:   5/5 (100%)
+  ├─ ✅ Completados:   4 (80%)
+  ├─ 🎯 Epic created:  1 (20%)
+  ├─ ⚠️ Saltados:      0 (0%)
+  └─ ❌ Abortados:     0 (0%)
+
+  PRs creados:         4
+  PRs mergeados:       4
+
+🤖 CARACTERÍSTICAS AUTÓNOMAS USADAS:
+  Auto-selección:        5/5 issues (100%)
+  Auto-corrección:       1 issue (1 review rechazado → corregido)
+  Auto-resolve conflicts: 1 issue (dependencies)
+  Epic breakdown:        1 issue (complejo → 8 sub-issues)
+  Persistencia:          5 saves automáticos
+  Timeouts:              0 (todos < 10 min)
+  Circuit breaker:       No activado (0 fallos consecutivos)
+
+📋 ISSUES COMPLETADOS:
+  1. ✅ #180 [ALTA] Refactor authentication → PR #270 ✅
+  2. ✅ #181 [MEDIA] Add export feature → PR #271 ✅ (auto-corregido)
+  3. ✅ #182 [ALTA] Update dependencies → PR #272 ✅ (conflicts resolved)
+  4. ✅ #192 [MEDIA] Fix user profile bug → PR #273 ✅
+
+🎯 EPICS CREADOS:
+  1. Epic #183 → Proyecto #12 "Implement notification system" (8 sub-issues)
+     💡 Resolver con: /workflow:issue-complete --loop --project=12 --autonomous
+
+📈 EFECTIVIDAD:
+  - 100% de issues procesados sin intervención manual
+  - 100% de auto-selecciones exitosas
+  - 100% de auto-correcciones exitosas (1/1)
+  - 100% de conflictos resueltos automáticamente (1/1)
+  - 0 issues perdidos (issue complejo → Epic estructurado)
+  - 28 minutos para 4 issues completados + 1 Epic = ~7 min/issue
+
+💡 DESTACADO DEL MODO --autonomous:
+  - CERO intervenciones manuales requeridas
+  - Issue complejo convertido a Epic (en lugar de saltar)
+  - Auto-corrección funcionó perfectamente (1/1)
+  - Conflictos de dependencies resueltos automáticamente
+  - Sesión persistida permite continuar en cualquier momento
+
+🚀 PRÓXIMOS PASOS SUGERIDOS:
+
+1. Resolver el Epic creado:
+   /workflow:issue-complete --loop --project=12 --autonomous
+
+2. Continuar con más issues del proyecto #7:
+   /workflow:issue-complete --loop --max=10 --project=7 --autonomous
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Comparación con modo manual**:
+```
+Modo Manual:
+  - Tiempo: ~2-3 horas (con preguntas, decisiones)
+  - Intervenciones: ~15-20 (selección, correcciones, decisiones)
+  - Issues completados: 4
+  - Issues perdidos: 1 (complejo, abandonado)
+
+Modo --autonomous:
+  - Tiempo: 28 minutos
+  - Intervenciones: 0
+  - Issues completados: 4
+  - Issues perdidos: 0 (→ Epic)
+
+Ahorro: ~85% de tiempo, 100% de issues procesados
 ```
 
 ---
