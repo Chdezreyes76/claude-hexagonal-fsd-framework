@@ -245,11 +245,15 @@ async function updateFramework(targetPath, options = {}) {
       }
 
       // Validate updated configuration
-      const validation = validateConfig(config);
+      const schemaPath = path.join(frameworkPath, 'config', 'schema.json');
+      const validation = await validateConfig(config, schemaPath);
+
       if (!validation.valid) {
         console.log(chalk.yellow(`\n⚠️  Configuration validation warnings:`));
         validation.errors.forEach(err => {
-          console.log(chalk.yellow(`   - ${err}`));
+          const errPath = err.path || err.instancePath || '';
+          const errMessage = err.message || 'Unknown error';
+          console.log(chalk.yellow(`   - ${errPath}: ${errMessage}`));
         });
       } else {
         console.log(chalk.green(`✅ Configuration validated`));
