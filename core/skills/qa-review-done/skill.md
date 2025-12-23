@@ -52,9 +52,23 @@ Agente autónomo que revisa todos los issues en columna "Done", ejecuta verifica
 
 ## Uso
 
+Este skill es invocado por el comando `/qa:review-done` con todos los argumentos disponibles.
+
+Ver documentación completa de argumentos en: `core/commands/qa/review-done.md`
+
+**Ejemplos de invocación:**
 ```bash
-/qa:review-done --project=<numero>
-# Ejemplo: /qa:review-done --project=7
+# Básico
+/qa:review-done --project=7
+
+# Rápido sin reportes
+/qa:review-done --project=7 --skip-browser --no-report
+
+# Un issue específico
+/qa:review-done --project=7 --issue=142
+
+# Dry run verbose
+/qa:review-done --project=7 --dry-run --verbose
 ```
 
 ## Responsabilidades Principales
@@ -1104,3 +1118,193 @@ Si el backend no responde, crear UN solo issue agrupado:
 - **SIEMPRE** capturar evidencia (screenshots, logs, network traces)
 - Issues creados automáticamente tienen labels: `bug,qa-failed,auto-created,severity:X`
 - Verificaciones Playwright son EXHAUSTIVAS - no omitir ninguna
+
+## Output Final
+
+### Ejemplo con Errores Detectados
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ QA REVIEW COMPLETE - Project #7
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Approved → Reviewed:     12 issues
+❌ Failed → Stay in Done:    3 issues
+🐛 Issues Created:           8 issues
+
+Failed Issues:
+  #210 → 3 errors → 3 issues created
+    - [API_ERROR] #234 - API Error 500 POST /api/v1/usuarios
+    - [CONSOLE_ERROR] #235 - Console error: Cannot read property 'map'
+    - [PERFORMANCE] #236 - Slow page load: 5230ms
+
+  #211 → 2 errors → 2 issues created (1 grouped)
+    - [API_ERROR] #234 (grouped with #210)
+    - [TYPESCRIPT_ERROR] #237 - TypeScript compilation error
+
+  #216 → 3 errors → 3 issues created
+    - [CORS_ERROR] #238 - CORS error blocking requests
+    - [CONSOLE_ERROR] #239 - Uncaught TypeError in UserForm.tsx
+    - [INTERACTION_ERROR] #240 - Error after clicking "Submit"
+
+⏱️  Time: 12 min 45 sec
+
+Next Steps:
+  1. Resolve the 8 issues created (see project board)
+  2. Re-run: /qa:review-done --project=7
+  3. Issues will auto-move to Reviewed when all checks pass
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Ejemplo con --no-report (Solo Estadísticas)
+
+```
+✅ QA Review Complete
+
+📊 Estadísticas:
+  ✅ Aprobados:    10/12 (83%)
+  ❌ Con errores:   2/12 (17%)
+  🐛 Issues creados: 5
+  ⏱️  Tiempo total:  8m 23s
+```
+
+### Ejemplo Todos Aprobados
+
+```
+✅ ALL ISSUES APPROVED
+
+15/15 issues pasaron QA
+🎉 Todos movidos a Reviewed
+
+⏱️  Time: 8 min 23 sec
+```
+
+## Integración con Workflow
+
+Este skill se integra en el flujo de desarrollo típico:
+
+```
+DESARROLLO
+  ↓
+Issues marcados como "Done" manualmente
+  ↓
+🔍 /qa:review-done --project=7  ← ESTE COMANDO
+  ↓
+  ¿Todos aprobados?
+  ├─ ✅ SÍ → Movidos a "Reviewed"
+  │         └─ Listos para merge
+  │
+  └─ ❌ NO → Issues creados automáticamente
+            ├─ Comentario en issue original
+            ├─ Issues con bugs agregados al proyecto
+            └─ Se quedan en "Done"
+  ↓
+Resolver issues de bugs (automáticos o manuales)
+  ↓
+Re-ejecutar /qa:review-done --project=7
+  ↓
+✅ Si todos pasan → Movidos a "Reviewed"
+```
+
+### Integración con /workflow:issue-complete
+
+El skill puede ser invocado automáticamente por `/workflow:issue-complete` en modo autónomo:
+
+```bash
+# Al final del workflow de cada issue
+if session.qaReviewEnabled:
+  await Skill('qa:review-done', {
+    projectNumber: session.projectNumber,
+    issue: completedIssueNumber,
+    quiet: true,
+    noReport: true
+  })
+```
+
+## Troubleshooting
+
+### Error: "Project not found"
+
+```bash
+# Verificar numero de proyecto correcto
+gh project list --owner <owner>
+
+# Usar el número correcto
+/qa:review-done --project=7
+```
+
+**Causa común:** El número de proyecto es incorrecto o no tienes permisos.
+
+### Error: "Frontend server not running"
+
+```bash
+# Iniciar servidor desarrollo
+cd frontend
+npm run dev
+
+# Esperar a que esté listo (http://localhost:3000)
+# Luego ejecutar: /qa:review-done --project=7
+```
+
+**Causa:** El servidor de desarrollo frontend debe estar corriendo para verificaciones de navegador.
+
+### Error: "Backend server not accessible"
+
+Si el backend no responde, el skill crea un issue agrupado:
+
+```
+[QA] Backend not running - Affects ALL frontend issues
+
+## Issues Afectados
+- #210, #211, #212, #213, #214 (5 issues bloqueados)
+
+## Acción Requerida
+1. Iniciar el servidor backend: `docker-compose up -d backend`
+2. Verificar: `curl http://localhost:8000/health`
+3. Re-ejecutar: `/qa:review-done --project=7`
+```
+
+### Muchos issues creados (>20)
+
+Esto indica problemas sistémicos. **Opciones:**
+
+1. Revisar y corregir errores agrupados primero (backend down, CORS, etc.)
+2. Ejecutar con `--skip-browser` para identificar solo errores TypeScript
+3. Ejecutar con `--dry-run` primero para ver cuántos errores hay sin crear issues
+4. Verificar que el entorno esté configurado correctamente
+
+### Playwright MCP no disponible
+
+Si los tools de Playwright MCP no están disponibles:
+
+```bash
+# Instalar Playwright MCP server
+npm install -g @modelcontextprotocol/server-playwright
+
+# Configurar en settings.json
+# Agregar tools: mcp__playwright__browser_*
+```
+
+**Workaround temporal:** Usar `--skip-browser` para omitir verificaciones de navegador.
+
+### Performance lenta (>5min por issue)
+
+**Optimizaciones:**
+
+1. Usar `--skip-browser` si no necesitas verificaciones exhaustivas
+2. Usar `--timeout=60` para reducir tiempo de espera
+3. Usar `--parallel=3` para procesar múltiples issues en paralelo
+4. Verificar que el backend/frontend respondan rápido
+
+**Ejemplo optimizado:**
+```bash
+/qa:review-done --project=7 --skip-browser --timeout=60 --parallel=2 --no-report
+```
+
+## Ver También
+
+- Comando `/qa:review-done` - Wrapper para invocar este skill con argumentos
+- Comando `/quality:review` - Revisar código antes de commit
+- Comando `/github:issue` - Crear issues manualmente
+- Skill `issue-workflow` - Workflow completo de issues con QA integrado
