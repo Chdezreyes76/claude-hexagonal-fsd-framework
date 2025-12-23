@@ -11,7 +11,7 @@ Revisa automáticamente todos los issues en columna "Done" de un proyecto GitHub
 ## Sintaxis
 
 ```bash
-/qa:review-done --project=<numero> [opciones]
+/qa-review-done --project=<numero> [opciones]
 ```
 
 ## Argumentos
@@ -49,16 +49,16 @@ Revisa automáticamente todos los issues en columna "Done" de un proyecto GitHub
 
 ```bash
 # Básico
-/qa:review-done --project=7
+/qa-review-done --project=7
 
 # Rápido sin reportes
-/qa:review-done --project=7 --skip-browser --no-report
+/qa-review-done --project=7 --skip-browser --no-report
 
 # Un issue específico
-/qa:review-done --project=7 --issue=142
+/qa-review-done --project=7 --issue=142
 
 # Dry run
-/qa:review-done --project=7 --dry-run --verbose
+/qa-review-done --project=7 --dry-run --verbose
 ```
 
 ## Instrucciones
@@ -72,7 +72,7 @@ const args = $ARGUMENTS
 const projectMatch = args.match(/--project=(\d+)/)
 if (!projectMatch) {
   console.log('❌ Error: Debes especificar --project=<numero>')
-  console.log('Ejemplo: /qa:review-done --project=7')
+  console.log('Ejemplo: /qa-review-done --project=7')
   console.log('\nProyectos disponibles:')
   const projectsList = await Bash('gh project list --owner {{githubOwner}} --format json')
   JSON.parse(projectsList).forEach(p => {

@@ -52,23 +52,23 @@ Agente autónomo que revisa todos los issues en columna "Done", ejecuta verifica
 
 ## Uso
 
-Este skill es invocado por el comando `/qa:review-done` con todos los argumentos disponibles.
+Este skill es invocado por el comando `/qa-review-done` con todos los argumentos disponibles.
 
 Ver documentación completa de argumentos en: `core/commands/qa/review-done.md`
 
 **Ejemplos de invocación:**
 ```bash
 # Básico
-/qa:review-done --project=7
+/qa-review-done --project=7
 
 # Rápido sin reportes
-/qa:review-done --project=7 --skip-browser --no-report
+/qa-review-done --project=7 --skip-browser --no-report
 
 # Un issue específico
-/qa:review-done --project=7 --issue=142
+/qa-review-done --project=7 --issue=142
 
 # Dry run verbose
-/qa:review-done --project=7 --dry-run --verbose
+/qa-review-done --project=7 --dry-run --verbose
 ```
 
 ## Responsabilidades Principales
@@ -966,7 +966,7 @@ $issues_list
 
 ### Próximos Pasos
 1. Resolver todos los issues creados arriba
-2. Volver a ejecutar \`/qa:review-done --project=$projectNumber\`
+2. Volver a ejecutar \`/qa-review-done --project=$projectNumber\`
 3. Si todos los issues están resueltos, este issue se moverá automáticamente a Reviewed
 
 ---
@@ -1037,7 +1037,7 @@ Failed Issues:
 
 Next Steps:
   1. Resolve the 8 issues created (see project board)
-  2. Re-run: /qa:review-done --project=7
+  2. Re-run: /qa-review-done --project=7
   3. Issues will auto-move to Reviewed when all checks pass
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1151,7 +1151,7 @@ Failed Issues:
 
 Next Steps:
   1. Resolve the 8 issues created (see project board)
-  2. Re-run: /qa:review-done --project=7
+  2. Re-run: /qa-review-done --project=7
   3. Issues will auto-move to Reviewed when all checks pass
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1189,7 +1189,7 @@ DESARROLLO
   ↓
 Issues marcados como "Done" manualmente
   ↓
-🔍 /qa:review-done --project=7  ← ESTE COMANDO
+🔍 /qa-review-done --project=7  ← ESTE COMANDO
   ↓
   ¿Todos aprobados?
   ├─ ✅ SÍ → Movidos a "Reviewed"
@@ -1202,7 +1202,7 @@ Issues marcados como "Done" manualmente
   ↓
 Resolver issues de bugs (automáticos o manuales)
   ↓
-Re-ejecutar /qa:review-done --project=7
+Re-ejecutar /qa-review-done --project=7
   ↓
 ✅ Si todos pasan → Movidos a "Reviewed"
 ```
@@ -1231,7 +1231,7 @@ if session.qaReviewEnabled:
 gh project list --owner <owner>
 
 # Usar el número correcto
-/qa:review-done --project=7
+/qa-review-done --project=7
 ```
 
 **Causa común:** El número de proyecto es incorrecto o no tienes permisos.
@@ -1244,7 +1244,7 @@ cd frontend
 npm run dev
 
 # Esperar a que esté listo (http://localhost:3000)
-# Luego ejecutar: /qa:review-done --project=7
+# Luego ejecutar: /qa-review-done --project=7
 ```
 
 **Causa:** El servidor de desarrollo frontend debe estar corriendo para verificaciones de navegador.
@@ -1262,7 +1262,7 @@ Si el backend no responde, el skill crea un issue agrupado:
 ## Acción Requerida
 1. Iniciar el servidor backend: `docker-compose up -d backend`
 2. Verificar: `curl http://localhost:8000/health`
-3. Re-ejecutar: `/qa:review-done --project=7`
+3. Re-ejecutar: `/qa-review-done --project=7`
 ```
 
 ### Muchos issues creados (>20)
@@ -1299,12 +1299,12 @@ npm install -g @modelcontextprotocol/server-playwright
 
 **Ejemplo optimizado:**
 ```bash
-/qa:review-done --project=7 --skip-browser --timeout=60 --parallel=2 --no-report
+/qa-review-done --project=7 --skip-browser --timeout=60 --parallel=2 --no-report
 ```
 
 ## Ver También
 
-- Comando `/qa:review-done` - Wrapper para invocar este skill con argumentos
+- Comando `/qa-review-done` - Wrapper para invocar este skill con argumentos
 - Comando `/quality:review` - Revisar código antes de commit
 - Comando `/github:issue` - Crear issues manualmente
 - Skill `issue-workflow` - Workflow completo de issues con QA integrado
