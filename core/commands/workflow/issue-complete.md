@@ -245,10 +245,10 @@ if (saveSession) {
 
 ### Sin filtro de proyecto
 
-Ejecutar el skill `/github:next`:
+Ejecutar el command `/github:next`:
 
-```typescript
-Skill("github:next")
+```bash
+/github:next
 ```
 
 Esto automáticamente:
@@ -295,7 +295,7 @@ Si se especificó `--project=N` en $ARGUMENTS:
 4. **Aplicar auto-selección o preguntar**:
    - Mostrar top 5 del proyecto
    - **Si autoSelect**: Seleccionar automáticamente el #1 del proyecto
-   - **Si no autoSelect**: Ejecutar Skill("github:next") con el issue seleccionado
+   - **Si no autoSelect**: Ejecutar `/github:next` para que el usuario seleccione el issue
 
 **Lógica de auto-selección con proyecto**:
 ```javascript
@@ -306,8 +306,8 @@ if (loopMode && autoSelect && projectNumber) {
 
   console.log(`✅ Auto-seleccionado del proyecto #${projectNumber}: #${topIssue.number} "${topIssue.title}"`)
 
-  // Invocar github:start con el issue específico
-  await Skill("github:start", `${topIssue.number}`)
+  // Ejecutar /github:start con el issue específico
+  // (esto creará branch, asignará issue, invocará issue-planner agent)
 } else if (projectNumber) {
   // Modo normal con proyecto: mostrar top 5 y preguntar
   const projectIssues = await getProjectIssues(projectNumber)
@@ -319,7 +319,7 @@ if (loopMode && autoSelect && projectNumber) {
   const answer = await AskUserQuestion("¿Cuál issue del proyecto quieres resolver?")
   const selectedIssue = projectIssues[answer - 1]
 
-  await Skill("github:start", `${selectedIssue.number}`)
+  // Ejecutar /github:start con el issue seleccionado
 }
 ```
 
@@ -473,14 +473,16 @@ if (attempts >= maxAttempts && implementer.status !== 'success') {
     // ESTRATEGIA 1: Epic Breakdown (PREFERIDO) ⭐
     console.log(`🎯 Issue demasiado complejo, convirtiendo a Epic...`)
 
-    const epicResult = await Skill('github:epic-breakdown', issue.number.toString())
+    // Ejecutar /github:epic-breakdown <issue-number>
+    // Este command retorna información del Epic creado
 
     console.log(`\n✅ Epic creado exitosamente:`)
-    console.log(`   Proyecto: #${epicResult.projectNumber} - "${epicResult.projectTitle}"`)
+    console.log(`   Proyecto: #<projectNumber> - "<projectTitle>"`)
     console.log(`   Issue original → Epic #${issue.number}`)
-    console.log(`   Sub-issues creados: ${epicResult.totalSubIssues}`)
+    console.log(`   Sub-issues creados: <totalSubIssues>`)
 
-    epicResult.subIssues.forEach((sub, idx) => {
+    // Mostrar sub-issues creados
+    subIssues.forEach((sub, idx) => {
       console.log(`   ${idx + 1}. #${sub.number} [${sub.type}] ${sub.title}`)
     })
 
@@ -550,8 +552,8 @@ if (attempts >= maxAttempts && implementer.status !== 'success') {
     })
 
     if (answer === "Convertir a Epic") {
-      // Invocar epic-breakdown
-      await Skill('github:epic-breakdown', issue.number.toString())
+      // Ejecutar /github:epic-breakdown <issue-number>
+      // El command creará el Epic y sub-issues
       continue
     } else if (answer === "Implementar manualmente") {
       console.log(`\n📝 Implementa manualmente el issue y luego ejecuta:`)
@@ -582,8 +584,8 @@ if (attempts >= maxAttempts && implementer.status !== 'success') {
 
 Una vez la implementación automática se completa, ejecutar:
 
-```typescript
-Skill("github:pr")
+```bash
+/github:pr
 ```
 
 Esto automáticamente:
@@ -599,10 +601,10 @@ Esto automáticamente:
 
 **ESTE ES EL PASO MÁS IMPORTANTE** - Nunca debe olvidarse.
 
-Ejecutar el skill de code review:
+Ejecutar el command de code review:
 
-```typescript
-Skill("quality:review")
+```bash
+/quality:review
 ```
 
 Esto ejecuta el agente `code-reviewer` que valida:
@@ -620,8 +622,8 @@ Esto ejecuta el agente `code-reviewer` que valida:
 El code-reviewer retorna JSON estructurado al final del reporte:
 
 ```javascript
+// Ejecutar /quality:review (invoca code-reviewer agent que retorna JSON)
 // Extraer JSON del output del code-reviewer
-const reviewOutput = await Skill("quality:review")
 const jsonMatch = reviewOutput.match(/\{[\s\S]*"status"[\s\S]*\}/m)
 
 if (jsonMatch) {
@@ -724,9 +726,9 @@ Implementa las correcciones necesarias y haz commit de los cambios.
       // Invocar implementador con el feedback
       await implementer.fix(fixPrompt)
 
-      // Volver a ejecutar code review
+      // Volver a ejecutar code review (via /quality:review command)
       console.log(`\n🔍 Re-ejecutando code review...`)
-      const newReviewOutput = await Skill("quality:review")
+      // Ejecutar /quality:review nuevamente
       const newJsonMatch = newReviewOutput.match(/\{[\s\S]*"status"[\s\S]*\}/m)
 
       if (newJsonMatch) {
@@ -846,8 +848,8 @@ Implementa las correcciones necesarias y haz commit de los cambios.
 
 Si el review fue aprobado, ejecutar:
 
-```typescript
-Skill("github:merge")
+```bash
+/github:merge
 ```
 
 Esto automáticamente:
@@ -874,7 +876,8 @@ El comando `github:merge` ahora intenta resolver conflictos automáticamente en 
 
 ```javascript
 // En modo autónomo con --auto-resolve-conflicts
-const mergeExitCode = await Skill("github:merge")
+// Ejecutar /github:merge (retorna exit code: 0=success, 1=error, 2=skip)
+const mergeExitCode = 0 // placeholder - el command retorna el código
 
 if (mergeExitCode === 2) {
   // Conflictos no pudieron resolverse automáticamente
@@ -1058,9 +1061,8 @@ Mostrar progreso entre issues:
 // Incrementar contador
 session.issuesResueltos++
 
-// Ejecutar recursivamente
-Skill("github:next")
-// Continuar con el flujo...
+// Volver al PASO 1 (seleccionar siguiente issue)
+// El workflow se repite automáticamente en modo loop
 ```
 
 ### Si termina: Mostrar Resumen
@@ -1235,7 +1237,7 @@ Leer de `.claude/skills/issue-workflow/config.json`:
 Usuario: /workflow:issue-complete
 
 [PASO 1: Seleccionar Issue]
-→ Skill("github:next")
+→ /github:next
 → Muestra top 5 issues
 → Usuario selecciona #184
 → Rama creada: fix/184-override-button
@@ -1248,15 +1250,15 @@ Usuario: /workflow:issue-complete
 → Implementación completada
 
 [PASO 3: PR]
-→ Skill("github:pr")
+→ /github:pr
 → PR #209 creado
 
 [PASO 4: Review ⭐]
-→ Skill("quality:review")
+→ /quality:review
 → APROBADO ✅
 
 [PASO 5: Merge]
-→ Skill("github:merge")
+→ /github:merge
 → Mergeado exitosamente
 
 [PASO 6: Loop]
@@ -1279,7 +1281,7 @@ Usuario: /workflow:issue-complete --loop --max=3
 [Session Iniciada: modo bucle, máximo 3 issues]
 
 [ISSUE 1/3]
-→ Skill("github:next") automático
+→ /github:next (automático)
 → Selecciona #215 (más prioritario)
 → Implementa → PR #227 → Review ✅ → Merge ✅
 → "✅ Issue #215 completado (1/3)"
@@ -1287,7 +1289,7 @@ Usuario: /workflow:issue-complete --loop --max=3
 → Continúa automáticamente
 
 [ISSUE 2/3]
-→ Skill("github:next") automático
+→ /github:next (automático)
 → Selecciona #214
 → Implementa → PR #226 → Review ✅ → Merge ✅
 → "✅ Issue #214 completado (2/3)"
@@ -1295,7 +1297,7 @@ Usuario: /workflow:issue-complete --loop --max=3
 → Continúa automáticamente
 
 [ISSUE 3/3]
-→ Skill("github:next") automático
+→ /github:next (automático)
 → Selecciona #213
 → Implementa → PR #225 → Review ✅ → Merge ✅
 → "✅ Issue #213 completado (3/3)"

@@ -65,7 +65,7 @@ Usar el agente `issue-planner` para analizar y dividir el issue:
 
 ```typescript
 const plan = await Task({
-  subagent_type: 'Plan',
+  subagent_type: 'issue-planner',
   prompt: `Analiza este issue complejo y divídelo en sub-tareas manejables.
 
 Issue #${issueNumber}: ${issueTitle}
@@ -369,34 +369,35 @@ Este comando es invocado automáticamente por `/workflow:issue-complete` cuando:
 2. El workflow está en modo `--autonomous` o `--epic-breakdown-on-failure`
 
 **Uso desde workflow**:
-```javascript
-// En workflow:issue-complete, después de 3 fallos de implementación
-if (implementer.status === 'failed' && implementer.attempts >= 3) {
-  if (session.autonomousMode || session.epicBreakdownOnFailure) {
-    console.log(`❌ Issue #${issue.number} demasiado complejo`)
-    console.log(`🎯 Convirtiendo a Epic con sub-issues...`)
 
-    // Invocar epic-breakdown
-    const result = await Skill('github:epic-breakdown', issue.number.toString())
+Cuando el workflow `/workflow:issue-complete` detecta que un issue es demasiado complejo (falla después de 3 reintentos), automáticamente:
 
-    console.log(`✅ Epic creado: Proyecto #${result.projectNumber}`)
-    console.log(`   Sub-issues: ${result.totalSubIssues}`)
-    console.log(`   Resolver con: /workflow:issue-complete --loop --project=${result.projectNumber} --autonomous`)
+1. **Detecta el fallo**: `implementer.status === 'failed' && implementer.attempts >= 3`
+2. **Verifica modo autónomo**: Si `--autonomous` o `--epic-breakdown-on-failure` está habilitado
+3. **Ejecuta este command**: `/github:epic-breakdown <issue-number>`
+4. **Procesa el resultado**:
+   - Epic creado en Proyecto #N
+   - X sub-issues generados
+   - Muestra comando para resolver: `/workflow:issue-complete --loop --project=N --autonomous`
+5. **Registra en sesión**: Guarda información del Epic para reporte final
+6. **Continúa con siguiente issue** del loop principal
 
-    // Registrar en sesión
-    session.issuesConvertidosEpic.push({
-      number: issue.number,
-      projectNumber: result.projectNumber,
-      subIssues: result.subIssues
-    })
+**Ejemplo de flujo**:
+```
+[ISSUE 5/20]
+→ Intentando implementar #150...
+❌ Fallo (intento 1/3)
+❌ Fallo (intento 2/3)
+❌ Fallo (intento 3/3)
 
-    // Continuar con siguiente issue del loop principal
-    continue
-  } else {
-    // Modo no autónomo: preguntar al usuario
-    askUserWhatToDo()
-  }
-}
+→ Issue demasiado complejo
+→ Ejecutando /github:epic-breakdown 150...
+
+✅ Epic creado: Proyecto #8
+   Sub-issues: 6
+   Resolver con: /workflow:issue-complete --loop --project=8 --autonomous
+
+→ Continuando con issue #149...
 ```
 
 ---
