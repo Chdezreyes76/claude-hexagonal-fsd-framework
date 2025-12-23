@@ -1,372 +1,433 @@
 ---
-description: Revisar automaticamente todos los issues en Done de un proyecto y moverlos a Reviewed si pasan QA
-allowed-tools: Task, Read, Glob, Grep, Bash(gh:*), MCPSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_network_requests
+description: Revisar automáticamente todos los issues en Done de un proyecto, crear issues por errores, y mover a Reviewed solo los que pasan QA
+allowed-tools: Task, Read, Glob, Grep, Bash(gh *), Bash(git *), Bash(npx *), Bash(node *), Write, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_evaluate, mcp__playwright__browser_network_requests
 ---
 
-# QA Review Done - Automated Issue Verification
+# QA Review Done - Automated Issue Verification with Auto-Issue Creation
 
-El usuario quiere revisar automaticamente todos los issues en columna "Done" de un proyecto GitHub. Argumentos: $ARGUMENTS
+El usuario quiere revisar automáticamente todos los issues en columna "Done" de un proyecto GitHub y crear issues automáticamente por cada error detectado. Argumentos: $ARGUMENTS
 
-## Instrucciones
+## Propósito
 
-1. **Parsear argumentos** ($ARGUMENTS):
+Este comando automatiza el proceso de QA verificando EXHAUSTIVAMENTE cada issue en Done con Playwright MCP, y **creando issues automáticamente** por cada error detectado para cerrar el ciclo de feedback.
 
-   Soporta DOS formatos:
+**Resultado:** Issues solo pasan a "Reviewed" cuando tienen 0 errores. Los errores detectados se convierten automáticamente en issues rastreables.
 
-   **Formato A: Posicional** (legacy, mantener compatibilidad)
-   ```bash
-   /qa:review-done 12
-   /qa:review-done 7 --skip-browser
-   ```
-
-   **Formato B: Named Parameters** (recomendado, más explícito)
-   ```bash
-   /qa:review-done --project=12
-   /qa:review-done --project=7 --skip-browser
-   /qa:review-done --project=12 --dry-run --skip-email
-   ```
-
-   **Parseo de $ARGUMENTS:**
-   ```javascript
-   // Extraer numero de proyecto
-   let projectNumber = null;
-
-   // Buscar --project=X
-   const projectMatch = $ARGUMENTS.match(/--project=(\d+)/);
-   if (projectMatch) {
-     projectNumber = projectMatch[1];
-   }
-
-   // Si no, buscar primer numero (formato posicional)
-   if (!projectNumber) {
-     const numberMatch = $ARGUMENTS.match(/^\s*(\d+)/);
-     if (numberMatch) {
-       projectNumber = numberMatch[1];
-     }
-   }
-
-   // Extraer flags opcionales
-   const skipBrowser = $ARGUMENTS.includes('--skip-browser');
-   const skipEmail = $ARGUMENTS.includes('--skip-email');
-   const dryRun = $ARGUMENTS.includes('--dry-run');
-   ```
-
-2. **Validar proyecto**:
-   - REQUERIDO: Numero de proyecto (ej: `7`, `12`, `15`)
-   - Si no se proporciona: Preguntar al usuario el numero de proyecto
-   - Si el usuario no sabe: Listar proyectos disponibles con `gh project list`
-
-3. **Invocar skill qa-review-done**:
-   ```
-   Usar Skill tool con:
-     skill="qa-review-done"
-     args="<numero-proyecto>"
-   ```
-
-   Pasar flags opcionales al skill según estén en $ARGUMENTS:
-   - `--skip-browser` → Omitir verificación browser
-   - `--skip-email` → No enviar email
-   - `--dry-run` → Simular sin mover issues
-
-   El skill ejecutara:
-   - Obtener todos los issues en columna "Done"
-   - Verificar cada issue (archivos, TypeScript, browser errors, network requests)
-   - Analizar POST/PUT/DELETE requests y validar responses
-   - Mover issues aprobados a "Reviewed"
-   - Generar reporte detallado
-   - Enviar email con resumen
-
-4. **Mostrar progreso en tiempo real**:
-   - Total de issues encontrados
-   - Progreso de verificacion (X/Y issues)
-   - Resultado por issue (✅ aprobado / ❌ con problemas)
-
-4. **Mostrar resumen final**:
-   ```
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ✅ RESUMEN QA REVIEW
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-   ✅ Verificados: 15/15
-   ✅ Aprobados: 12
-   ❌ Con problemas: 3
-   ⏱️  Tiempo: 8 min 23 seg
-
-   📧 Email enviado a {{userEmail}}
-   📄 Reporte guardado en: .claude/qa-reports/2025-12-22_1530/report.md
-
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ```
-
-## Argumentos
-
-| Argumento | Descripción | Ejemplo |
-|-----------|-------------|---------|
-| `<numero>` o `--project=<numero>` | Numero del proyecto GitHub (REQUERIDO) | `12`, `--project=7` |
-| `--skip-browser` | Omitir verificación en navegador | `/qa:review-done --project=7 --skip-browser` |
-| `--skip-email` | No enviar email al finalizar | `/qa:review-done --project=7 --skip-email` |
-| `--dry-run` | Simular sin mover issues | `/qa:review-done --project=7 --dry-run` |
+---
 
 ## Sintaxis
 
-**Named Parameters (Recomendado):**
 ```bash
 /qa:review-done --project=<numero> [opciones]
 ```
 
-**Posicional (Legacy, mantiene compatibilidad):**
+**Argumentos:**
+- `--project=<numero>` - Número del proyecto GitHub (REQUERIDO)
+- `--skip-browser` - Omitir verificación en navegador (solo TypeScript y archivos)
+- `--dry-run` - Simular sin mover issues ni crear issues de errores
+
+**Ejemplos:**
 ```bash
-/qa:review-done <numero> [opciones]
-```
-
-## Ejemplos de Uso
-
-**Sintaxis Recomendada (Named Parameters):**
-```bash
-# Uso básico con sintaxis explícita
-/qa:review-done --project=12
-
-# Listar proyectos primero
-gh project list
+# Uso básico
 /qa:review-done --project=7
 
-# Dry run (solo verificar, no mover)
-/qa:review-done --project=12 --dry-run
-
-# Sin verificación browser (más rápido)
+# Solo verificar TypeScript y archivos (más rápido)
 /qa:review-done --project=7 --skip-browser
 
-# Sin email (solo reporte local)
-/qa:review-done --project=12 --skip-email
-
-# Combinar múltiples opciones
-/qa:review-done --project=7 --dry-run --skip-email
-
-# Solo verificar archivos y TypeScript (más rápido)
-/qa:review-done --project=12 --skip-browser --skip-email
+# Dry run (simular sin cambios)
+/qa:review-done --project=7 --dry-run
 ```
 
-**Sintaxis Legacy (mantiene compatibilidad):**
-```bash
-# Formato posicional simple
-/qa:review-done 7
+---
 
-# Con opciones
-/qa:review-done 12 --dry-run
-/qa:review-done 7 --skip-browser
+## Instrucciones de Ejecución
+
+### PASO 1: Validar Argumentos
+
+```javascript
+// Extraer numero de proyecto
+const projectMatch = $ARGUMENTS.match(/--project=(\d+)/);
+if (!projectMatch) {
+  console.log('❌ Error: Debes especificar --project=<numero>')
+  console.log('Ejemplo: /qa:review-done --project=7')
+
+  // Listar proyectos disponibles
+  const projects = await Bash('gh project list --owner {{githubOwner}} --format json')
+  console.log('\nProyectos disponibles:')
+  JSON.parse(projects).forEach(p => {
+    console.log(`  #${p.number} - ${p.title}`)
+  })
+
+  return
+}
+
+const projectNumber = projectMatch[1]
+const skipBrowser = $ARGUMENTS.includes('--skip-browser')
+const dryRun = $ARGUMENTS.includes('--dry-run')
+
+console.log(`Starting QA Review for Project #${projectNumber}`)
+if (skipBrowser) console.log('⚠️  Skipping browser verification')
+if (dryRun) console.log('⚠️  DRY RUN - No changes will be made')
 ```
+
+### PASO 2: Invocar Skill qa-review-done
+
+```javascript
+// El skill ejecuta:
+// - Obtener todos los issues en columna "Done"
+// - Para cada issue:
+//   1. Verificar archivos existen
+//   2. Compilar TypeScript (frontend)
+//   3. Verificaciones EXHAUSTIVAS con Playwright:
+//      - Console messages (ALL levels: error, warning, info, log)
+//      - Network requests (GET, POST, PUT, DELETE con análisis completo)
+//      - Interacciones de usuario (click, form fill, submit)
+//      - Performance (load time, API response time, memory)
+//      - Estado de aplicación (React Query, localStorage, sessionStorage)
+//   4. **CREAR ISSUE AUTOMÁTICAMENTE** por cada error detectado usando /github:issue
+//   5. **COMENTAR EN ISSUE ORIGINAL** con enlaces a issues creados
+//   6. **MOVER A REVIEWED** solo si 0 errores detectados
+
+await Skill('qa-review-done', {
+  projectNumber: projectNumber,
+  skipBrowser: skipBrowser,
+  dryRun: dryRun
+})
+```
+
+---
 
 ## Verificaciones Ejecutadas
 
 Para cada issue en "Done", el skill verifica:
 
-### ✅ Verificacion de Archivos
+### ✅ Verificación de Archivos
 - Archivos mencionados en el issue existen
 - No hay imports rotos
-- Estructura correcta segun FSD (frontend) o Hexagonal (backend)
+- Estructura correcta según FSD (frontend) o Hexagonal (backend)
 
-### ✅ Compilacion TypeScript (Frontend)
+**Si falla:** Crea issue `[QA] Missing files en #N`
+
+### ✅ Compilación TypeScript (Frontend)
 ```bash
 cd frontend
 npx tsc --noEmit
 ```
-- PASS: Sin errores de compilacion
-- FAIL: Errores de tipos → Mantener en Done
+- PASS: Sin errores de compilación
+- FAIL: Errores de tipos → **Crea issue `[QA] TypeScript compilation error en #N`**
 
-### ✅ Verificacion en Navegador (Frontend)
+### ✅ Verificación Browser - Console EXHAUSTIVA
 ```javascript
-// Abrir navegador en localhost:3000
-// Navegar a paginas relevantes segun issue
-// Capturar errores de consola
-// Tomar screenshots como evidencia
-```
-- PASS: 0 errores de consola
-- FAIL: Errores en consola → Mantener en Done
+// Capturar TODOS los console messages
+const consoleMessages = await mcp__playwright__browser_console_messages()
 
-### ✅ **Análisis de Network Requests (NUEVO - API Validation)**
+// Clasificar por severidad:
+// - CRITICAL: Uncaught errors, TypeError, ReferenceError, failed fetch
+// - HIGH: React warnings, deprecations
+// - MEDIUM: Third-party warnings
+// - LOW: Info logs
+```
+
+**Si falla:** Crea issue `[QA] Console error en #N: {error_summary}`
+
+### ✅ Verificación Browser - Network EXHAUSTIVA
 ```javascript
-// Capturar todas las network requests durante navegación
-const requests = await browser_network_requests()
+// Capturar TODAS las network requests
+const networkRequests = await mcp__playwright__browser_network_requests()
 
-// Analizar POST/PUT/DELETE requests
-for (const req of requests.filter(r => ['POST','PUT','DELETE'].includes(r.method))) {
-  // Validar status code (2xx = success)
-  // Validar response body (JSON válido, sin errores)
-  // Verificar tiempos de respuesta (<5s)
-  // Detectar CORS, auth errors, backend down
-}
+// Analizar cada POST/PUT/DELETE:
+// - Status code debe ser 2xx
+// - Response body debe ser JSON válido
+// - No debe contener errores en response
+// - Tiempo de respuesta <3s (warning si >3s, fail si >5s)
+// - No CORS errors
+// - No Auth errors (401/403)
 ```
 
-**Criterios:**
-- ✅ PASS: Todos los POST/PUT/DELETE con status 2xx, JSON válido, <5s
-- ⚠️ WARNING: Requests lentos (>3s) pero exitosos
-- ❌ FAIL: Status 4xx/5xx, CORS errors, backend no responde
+**Errores detectados automáticamente:**
+- **API Error 500** → Crea issue `[QA] API Error 500 en #N: POST /api/v1/usuarios`
+- **CORS Error** → Crea issue `[QA] CORS error en #N`
+- **Validation 422** → Crea issue `[QA] Validation error en #N`
+- **Backend Down** → Crea issue `[QA] Backend not running en #N`
+- **Slow API >5s** → Crea issue `[QA] Performance issue en #N: Slow API response`
 
-**Ejemplos de Validación:**
+### ✅ Verificación Browser - Interacciones Usuario
 ```javascript
-// ✅ POST /api/v1/usuarios
-Request: {"nombre": "Juan", "email": "juan@test.com", "rol": "ADMIN"}
-Response: 201 Created, {"id": 123, "nombre": "Juan", ...}
+// Identificar acciones del issue (ej: "crear usuario")
+// Simular flujo completo:
+// 1. Click en botón "Nuevo Usuario" → Screenshot
+// 2. Llenar formulario con datos de prueba → Screenshot
+// 3. Submit formulario → Capturar network
+// 4. Verificar success message (toast/alert)
+// 5. Verificar redirección correcta
 
-// ❌ POST /api/v1/productos
-Request: {"nombre": "Producto 1"}
-Response: 500 Internal Server Error, {"detail": "Database timeout"}
-→ FAIL: Issue permanece en Done
+// Capturar errores durante cada acción
 ```
 
-**Errores Detectados Automáticamente:**
-- Backend no está corriendo (ECONNREFUSED)
-- CORS policy bloqueando requests
-- 401 Unauthorized (auth requerida)
-- 422 Validation errors (campos inválidos)
-- 500 Internal Server Error (bugs en backend)
-- Timeouts (>10s sin respuesta)
+**Si falla:** Crea issue `[QA] Interaction error en #N: Error after clicking Submit`
 
-### ✅ Migraciones (Backend con cambios DB)
-- Verificar migraciones Alembic aplicadas
-- Sin conflictos de migracion
+### ✅ Verificación Browser - Performance & Estado
+```javascript
+// Performance:
+// - Tiempo de carga página <3s
+// - Response time APIs <3s
+// - Memory usage razonable
 
-## Criterios de Aprobacion
-
-Un issue pasa a "Reviewed" si cumple **TODOS** estos criterios:
-
-| Criterio | Descripcion | Impacto |
-|----------|-------------|---------|
-| ✅ Archivos existen | Todos los archivos mencionados están presentes | CRITICAL |
-| ✅ TypeScript compila | Sin errores de tipos (frontend) | CRITICAL |
-| ✅ Sin errores browser | 0 errores en consola JavaScript | CRITICAL |
-| ✅ **Network requests OK** | **POST/PUT/DELETE con status 2xx, JSON válido** | **CRITICAL** |
-| ✅ **API responses válidas** | **No errors en response bodies** | **CRITICAL** |
-| ⚠️ Performance OK | Requests <5s (warnings si >3s pero no falla) | WARNING |
-| ✅ Migraciones OK | Migraciones aplicadas sin conflictos (si aplica) | CRITICAL |
-
-Si **CUALQUIER** criterio CRITICAL falla, el issue permanece en "Done".
-
-### Ejemplos de Fallo por Network Requests:
-
-**Caso 1: Backend Error 500**
-```
-Issue #210 - POST /api/v1/usuarios
-Response: 500 Internal Server Error
-❌ FAIL → Permanece en Done
-Razón: "API error: 500 Internal Server Error - Database connection timeout"
+// Estado de aplicación:
+// - React Query: No queries con errores
+// - localStorage: Auth token existe si se requiere
+// - sessionStorage: Datos críticos presentes
 ```
 
-**Caso 2: CORS Error**
-```
-Issue #211 - POST /api/v1/productos
-Error: "CORS policy: No 'Access-Control-Allow-Origin' header"
-❌ FAIL → Permanece en Done
-Razón: "CORS policy blocking requests"
+**Si falla:** Crea issue `[QA] Performance issue en #N: Slow page load 5230ms`
+
+---
+
+## Creación Automática de Issues
+
+Cuando se detecta un error, el skill **crea automáticamente un issue** usando `/github:issue`:
+
+**Estructura del issue creado:**
+```markdown
+Title: [QA] {tipo_error} en #{issue_original}: {descripción}
+
+Body:
+## Issue Original Bloqueado
+#{issue_original} - {titulo}
+
+Este issue no puede moverse a Reviewed por el siguiente error.
+
+## Error Detectado
+**Tipo:** {errorType}
+**Severidad:** CRITICAL/HIGH/MEDIUM
+
+{detalles_del_error}
+
+## Screenshot
+![Error Screenshot](.claude/qa-screenshots/issue-{N}-errors.png)
+
+## Request (si aplica)
+```json
+{request_body}
 ```
 
-**Caso 3: Validation Error 422**
-```
-Issue #212 - POST /api/v1/centros-coste
-Response: 422 Unprocessable Entity
-Body: {"detail": [{"loc": ["body", "codigo"], "msg": "field required"}]}
-❌ FAIL → Permanece en Done
-Razón: "Request validation errors - missing required field 'codigo'"
+## Response (si aplica)
+```json
+{response_body}
 ```
 
-## Integracion con Workflow
+## Impacto
+- Severidad: CRITICAL
+- Bloquea: #{issue_original}
+- {descripción_impacto}
 
-Este comando se ejecuta tipicamente:
+## Acción Requerida
+{pasos_para_resolver}
+
+---
+🤖 Auto-created by QA Review
+```
+
+**Labels aplicados:**
+- `bug` - Es un bug detectado por QA
+- `qa-failed` - Bloqueante de QA
+- `auto-created` - Creado automáticamente
+- `severity:critical|high|medium` - Nivel de severidad
+- `{error-type}` - Tipo específico: `api-error`, `console-error`, `typescript`, `cors-error`, etc.
+
+**Asignación:**
+- Asignado a: Mismos assignees del issue original
+- Proyecto: Agregado al mismo proyecto
+- Linked to: Issue original (#N)
+
+---
+
+## Comentario en Issue Original
+
+Cuando se detectan errores, el skill agrega un comentario al issue original:
+
+```markdown
+## ⚠️ QA Review Failed
+
+Este issue no puede moverse a Reviewed por los siguientes errores detectados.
+
+### Errores Detectados (3)
+- 🔴 [API_ERROR] #234 - API Error 500 POST /api/v1/usuarios - Severity: CRITICAL
+- 🔴 [CONSOLE_ERROR] #235 - Console error: Cannot read property 'map' - Severity: HIGH
+- 🟡 [PERFORMANCE] #236 - Slow page load: 5230ms - Severity: MEDIUM
+
+### Próximos Pasos
+1. Resolver todos los issues creados arriba
+2. Volver a ejecutar `/qa:review-done --project=7`
+3. Si todos los issues están resueltos, este issue se moverá automáticamente a Reviewed
+
+---
+🤖 Auto-generated by QA Review - 2025-12-23 15:30:45
+```
+
+---
+
+## Agrupación Inteligente de Errores
+
+Si múltiples issues tienen el **mismo error** (ej: mismo API endpoint retorna 500), el skill agrupa automáticamente:
+
+```markdown
+Title: [QA] API Error 500 POST /api/v1/usuarios - Affects 3 issues
+
+Body:
+## Issues Afectados
+- #210 - Crear usuarios
+- #211 - Editar usuarios
+- #212 - Eliminar usuarios
+
+## Error Común
+POST /api/v1/usuarios → 500 Internal Server Error
+Response: {"detail": "Database connection timeout"}
+
+## Impacto
+- Severidad: CRITICAL
+- Bloquea 3 issues en Done
+
+## Acción Requerida
+Resolver este error desbloqueará todos los issues afectados.
+Verificar conexión a base de datos y revisar logs del backend.
+```
+
+---
+
+## Output Final
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ QA REVIEW COMPLETE - Project #7
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Approved → Reviewed:     12 issues
+❌ Failed → Stay in Done:    3 issues
+🐛 Issues Created:           8 issues
+
+Failed Issues:
+  #210 → 3 errors → 3 issues created
+    - [API_ERROR] #234 - API Error 500 POST /api/v1/usuarios
+    - [CONSOLE_ERROR] #235 - Console error: Cannot read property 'map'
+    - [PERFORMANCE] #236 - Slow page load: 5230ms
+
+  #211 → 2 errors → 2 issues created (1 grouped)
+    - [API_ERROR] #234 (grouped with #210)
+    - [TYPESCRIPT_ERROR] #237 - TypeScript compilation error
+
+  #216 → 3 errors → 3 issues created
+    - [CORS_ERROR] #238 - CORS error blocking requests
+    - [CONSOLE_ERROR] #239 - Uncaught TypeError in UserForm.tsx
+    - [INTERACTION_ERROR] #240 - Error after clicking "Submit"
+
+⏱️  Time: 12 min 45 sec
+
+Next Steps:
+  1. Resolve the 8 issues created (see project board)
+  2. Re-run: /qa:review-done --project=7
+  3. Issues will auto-move to Reviewed when all checks pass
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## Casos Especiales
+
+### Sin Issues en Done
+
+```
+ℹ️  NO ISSUES TO REVIEW
+
+Proyecto #7: No hay issues en columna "Done"
+✅ Nada que revisar
+```
+
+### Todos Aprobados
+
+```
+✅ ALL ISSUES APPROVED
+
+15/15 issues pasaron QA
+🎉 Todos movidos a Reviewed
+
+⏱️  Time: 8 min 23 sec
+```
+
+### Backend No Está Corriendo
+
+Si el backend no responde, crea UN solo issue agrupado:
+
+```
+Title: [QA] Backend not running - Affects ALL frontend issues
+
+Body:
+## Issues Afectados
+- #210, #211, #212, #213, #214 (5 issues bloqueados)
+
+## Error
+Backend server is not accessible at http://localhost:8000
+All API requests fail with ECONNREFUSED
+
+## Acción Requerida
+1. Iniciar el servidor backend: `docker-compose up -d backend`
+2. Verificar que está corriendo: `curl http://localhost:8000/health`
+3. Re-ejecutar QA review: `/qa:review-done --project=7`
+```
+
+---
+
+## Integración con Workflow
+
+Este comando se ejecuta típicamente:
 
 ```
 DESARROLLO
   ↓
 Issues marcados como "Done" manualmente
   ↓
-🔍 /qa/review-done <proyecto>  ← ESTE COMANDO
+🔍 /qa:review-done --project=7  ← ESTE COMANDO
   ↓
   ¿Todos aprobados?
-  ├─ ✅ SI → Email celebracion, issues en "Reviewed"
-  └─ ❌ NO → Email con errores, issues en "Done"
+  ├─ ✅ SÍ → Movidos a "Reviewed"
+  │         └─ Listos para merge
+  │
+  └─ ❌ NO → Issues creados automáticamente
+            ├─ Comentario en issue original
+            ├─ Issues con bugs agregados al proyecto
+            └─ Se quedan en "Done"
   ↓
-Correcciones (si necesario)
+Resolver issues de bugs (automáticos o manuales)
   ↓
-Re-ejecutar /qa/review-done
+Re-ejecutar /qa:review-done --project=7
+  ↓
+✅ Si todos pasan → Movidos a "Reviewed"
 ```
 
-## Reporte Generado
-
-El skill genera un reporte Markdown en `.claude/qa-reports/<fecha>/report.md` con:
-
-- Resumen ejecutivo (aprobados, fallidos, tiempo)
-- Lista de issues aprobados con detalles
-- Lista de issues con problemas y razon
-- Estadisticas detalladas por categoria
-- Screenshots capturados (evidencia visual)
-- Proximos pasos recomendados
-
-## Email de Resumen
-
-Si esta habilitado (default), envia email HTML a `{{userEmail}}` con:
-
-- Resumen ejecutivo visual (colores verde/rojo)
-- Tabla de issues aprobados
-- Tabla de issues con problemas y accion requerida
-- Proximos pasos recomendados
-- Enlace al reporte completo
-
-Configurar en `.claude/skills/qa-review-done/email-config.json` (ver skill README).
-
-## Casos Especiales
-
-### Sin Issues en Done
-```
-ℹ️  NO ISSUES TO REVIEW
-Proyecto #7: Revision de Calidad
-Issues en "Done": 0
-
-✅ Todos los issues ya han sido revisados
-```
-No envia email.
-
-### Todos Aprobados
-```
-✅ ALL ISSUES APPROVED
-15/15 issues pasaron QA
-
-🎉 Excelente trabajo!
-```
-Envia email de celebracion.
-
-### Todos Fallaron
-```
-❌ ALL ISSUES FAILED QA
-0/15 issues pasaron QA
-
-⚠️  Se requiere revision urgente
-```
-Envia email URGENTE con prioridad alta.
-
-## Optimizaciones
-
-- **Compilacion incremental**: TypeScript usa cache entre issues
-- **Sesion browser reutilizada**: Un solo navegador para todos los issues
-- **Verificacion paralela**: Hasta 3 issues en paralelo (si >10 issues)
+---
 
 ## Notas Importantes
 
-- **SIEMPRE** verifica TypeScript compilation (frontend critical)
-- **SIEMPRE** captura errores de consola browser
-- **SIEMPRE** toma screenshots como evidencia
-- **SIEMPRE** envia email al completar (aunque no haya issues)
-- **NUNCA** mueve a Reviewed si hay errores
-- **NUNCA** omite verificaciones para acelerar
-- Si timeout (>15 min), reporta y envia email con estado parcial
+1. **Auto-creación de issues** - SIEMPRE crea issue por cada error (cierra el loop de feedback)
+2. **Evidencia completa** - Screenshots, logs, network traces en cada issue creado
+3. **0 errores = Reviewed** - Solo mueve a Reviewed si NO hay errores detectados
+4. **Comentarios automáticos** - Issue original recibe comentario con links a issues creados
+5. **Agrupación inteligente** - Errores duplicados se agrupan en un solo issue
+6. **Playwright exhaustivo** - Verificaciones COMPLETAS de console, network, interacciones, performance
+7. **No reportes ni emails** - Resultado se ve directamente en issues creados y project board
+
+---
 
 ## Troubleshooting
 
 ### Error: "Project not found"
 ```bash
 # Verificar numero de proyecto correcto
-gh project list
+gh project list --owner {{githubOwner}}
 
-# Formato: /qa/review-done <numero>
-/qa/review-done 7
+# Usar el número correcto
+/qa:review-done --project=7
 ```
 
 ### Error: "Frontend server not running"
@@ -375,21 +436,20 @@ gh project list
 cd frontend
 npm run dev
 
-# Esperar a que este listo
-# Luego ejecutar: /qa/review-done 7
+# Esperar a que esté listo (http://localhost:3000)
+# Luego ejecutar: /qa:review-done --project=7
 ```
 
-### Email no se envia
-```bash
-# Verificar configuracion email
-cat .claude/skills/qa-review-done/email-config.json
+### Muchos issues creados (>20)
+Esto indica problemas sistémicos. Opciones:
+1. Revisar y corregir errores agrupados primero (backend down, CORS, etc.)
+2. Ejecutar con `--skip-browser` para identificar solo errores TypeScript
+3. Ejecutar con `--dry-run` primero para ver cuántos errores hay sin crear issues
 
-# O usar --skip-email para generar solo reporte local
-/qa/review-done 7 --skip-email
-```
+---
 
-## Ver Tambien
+## Ver También
 
-- `/quality/review` - Revisar cambios de codigo antes de commit
-- Skill `qa-review-done` - Documentacion completa del skill
-- `.claude/skills/qa-review-done/README.md` - Configuracion detallada
+- `/quality:review` - Revisar código antes de commit
+- `/github:issue` - Crear issue manualmente
+- Skill `qa-review-done` - Documentación completa del skill
