@@ -1,5 +1,5 @@
 ---
-name: qa-review-done
+name: qa:review-done
 description: Revisar automáticamente todos los issues en Done de un proyecto, crear issues por errores detectados, y mover a Reviewed solo los que pasan todas las verificaciones
 agent-type: qa-validator
 retry-attempts: 0
