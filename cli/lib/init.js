@@ -693,6 +693,31 @@ async function setupClaudeDirectory(projectRoot, frameworkRoot, config, options 
     spinner.warn('Templates directory not found, skipping...');
   }
 
+  // 2.6. Copiar commands y skills SIN procesar
+  spinner = ora('Copying commands and skills...').start();
+
+  // Copiar commands
+  const commandsSourceDir = path.join(coreDir, 'commands');
+  const commandsTargetDir = path.join(claudeDir, 'commands');
+  if (await fs.pathExists(commandsSourceDir)) {
+    await fs.copy(commandsSourceDir, commandsTargetDir, {
+      overwrite: true,
+      errorOnExist: false
+    });
+  }
+
+  // Copiar skills
+  const skillsSourceDir = path.join(coreDir, 'skills');
+  const skillsTargetDir = path.join(claudeDir, 'skills');
+  if (await fs.pathExists(skillsSourceDir)) {
+    await fs.copy(skillsSourceDir, skillsTargetDir, {
+      overwrite: true,
+      errorOnExist: false
+    });
+  }
+
+  spinner.succeed('Commands and skills copied');
+
   // 3. Generar claude.config.json
   spinner = ora('Generating claude.config.json...').start();
   const configPath = path.join(claudeDir, 'claude.config.json');
