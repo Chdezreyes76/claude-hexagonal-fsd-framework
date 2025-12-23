@@ -186,8 +186,17 @@ if (resumeSessionPath) {
 
 if (!session) {
   // NUEVA SESIÓN
+  // Generar ID único para la sesión
+  const generateSessionId = () => {
+    const timestamp = Date.now().toString(36)
+    const random = Math.random().toString(36).substring(2, 9)
+    return `${timestamp}-${random}`
+  }
+
   session = {
+    sessionId: generateSessionId(),  // ID único para tracking
     startTime: Date.now(),
+    status: 'in_progress',           // in_progress | completed | aborted
     loopMode: loopMode,
     autonomousMode: autonomousMode,
     autoSelect: autoSelect,
@@ -227,6 +236,7 @@ if (!session) {
   }
 
   console.log(`\n🚀 Nueva sesión iniciada`)
+  console.log(`   ID: ${session.sessionId}`)
   console.log(`   Modo: ${autonomousMode ? 'Autónomo' : (loopMode ? 'Loop' : 'Normal')}`)
   if (maxIssues) console.log(`   Máximo: ${maxIssues} issues`)
   if (projectNumber) console.log(`   Proyecto: #${projectNumber}`)
@@ -947,20 +957,30 @@ console.log(`\n✅ PR #${prNumber} mergeado exitosamente`)
 Después de completar o saltar un issue, guardar el estado de la sesión:
 
 ```javascript
+// ============================================================
 // Guardar estado de sesión después de cada issue
+// ESTRATEGIA: Solo sesión activa (no historial acumulado)
+// ============================================================
 if (session.saveSession) {
   session.currentIssue = null  // No hay issue en progreso
   session.lastUpdate = Date.now()
   session.duration = Date.now() - session.startTime
 
   try {
+    // Guardar solo sesión ACTUAL (archivo pequeño, rápido de cargar)
+    const sessionData = JSON.stringify(session, null, 2)
+    const sessionSizeKB = (sessionData.length / 1024).toFixed(1)
+
     await fs.writeFile(
       session.saveSession,
-      JSON.stringify(session, null, 2),
+      sessionData,
       'utf-8'
     )
 
     console.log(`💾 Sesión guardada: ${session.saveSession}`)
+    console.log(`   Issues resueltos: ${session.issuesResueltos.length}`)
+    console.log(`   Issues saltados: ${session.issuesSaltados.length}`)
+    console.log(`   Tamaño: ${sessionSizeKB} KB`)
   } catch (error) {
     console.log(`⚠️  Error al guardar sesión: ${error.message}`)
   }
@@ -1104,6 +1124,152 @@ Para continuar:
 ¡Excelente trabajo! 🚀
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+### Archivar Sesión Completada (Nuevo - Fase 6.1)
+
+Después de mostrar el resumen final, archivar la sesión en el historial:
+
+```javascript
+// ============================================================
+// Archivar sesión completada en historial
+// ESTRATEGIA: Sesión activa → Historial diario
+// ============================================================
+async function archivarSesion(session) {
+  if (!session.saveSession) {
+    return  // Archivado deshabilitado
+  }
+
+  // Marcar sesión como completada
+  session.status = 'completed'
+  session.endTime = Date.now()
+
+  const today = new Date().toISOString().split('T')[0]  // 2025-12-23
+  const historyDir = path.join('.claude', 'session', 'history')
+  const historyFile = path.join(historyDir, `${today}.json`)
+
+  try {
+    // Crear directorio si no existe
+    await fs.ensureDir(historyDir)
+
+    // Leer historial del día (si existe)
+    let dayHistory = {
+      date: today,
+      sessions: []
+    }
+
+    if (await fs.pathExists(historyFile)) {
+      const content = await fs.readFile(historyFile, 'utf-8')
+      dayHistory = JSON.parse(content)
+    }
+
+    // Agregar sesión actual al historial del día
+    dayHistory.sessions.push({
+      sessionId: session.sessionId,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      duration: session.duration,
+      autonomousMode: session.autonomousMode,
+      projectNumber: session.projectNumber,
+
+      // Resumen compacto (para vistas rápidas)
+      summary: {
+        issuesCompletados: session.issuesResueltos.length,
+        issuesSaltados: session.issuesSaltados.length,
+        epicsCreados: session.issuesConvertidosEpic.length,
+        prsCreados: session.issuesResueltos.length,
+        prsMergeados: session.issuesResueltos.length
+      },
+
+      // Detalles completos (para auditoría)
+      details: {
+        issuesResueltos: session.issuesResueltos,
+        issuesSaltados: session.issuesSaltados,
+        issuesConvertidosEpic: session.issuesConvertidosEpic,
+        stats: session.stats
+      }
+    })
+
+    // Guardar historial del día
+    await fs.writeFile(historyFile, JSON.stringify(dayHistory, null, 2))
+
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+    console.log(`📚 Sesión archivada exitosamente`)
+    console.log(`   Archivo: ${historyFile}`)
+    console.log(`   Sesiones del día: ${dayHistory.sessions.length}`)
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+
+    // Limpieza automática de archivos antiguos
+    await limpiarHistorialAntiguo(historyDir, 30)
+
+  } catch (error) {
+    console.log(`⚠️  Error al archivar sesión: ${error.message}`)
+  }
+}
+
+// ============================================================
+// Limpieza automática de historial antiguo
+// ============================================================
+async function limpiarHistorialAntiguo(historyDir, diasMantener = 30) {
+  try {
+    const archivos = await fs.readdir(historyDir)
+    const ahora = Date.now()
+    const maxEdad = diasMantener * 24 * 60 * 60 * 1000
+
+    let archivosEliminados = 0
+
+    for (const archivo of archivos) {
+      // Solo procesar archivos JSON
+      if (!archivo.endsWith('.json')) {
+        continue
+      }
+
+      const rutaArchivo = path.join(historyDir, archivo)
+      const stats = await fs.stat(rutaArchivo)
+
+      // Eliminar si es más antiguo que diasMantener
+      if (ahora - stats.mtime.getTime() > maxEdad) {
+        await fs.remove(rutaArchivo)
+        archivosEliminados++
+      }
+    }
+
+    if (archivosEliminados > 0) {
+      console.log(`🗑️  Historial antiguo limpiado: ${archivosEliminados} archivos (>${diasMantener} días)`)
+    }
+
+  } catch (error) {
+    // Silencioso si falla la limpieza
+  }
+}
+
+// ============================================================
+// Al finalizar el workflow, archivar la sesión
+// ============================================================
+// Después de mostrar el resumen final, llamar:
+await archivarSesion(session)
+```
+
+**Estructura de archivos resultante**:
+
+```
+.claude/session/
+├── workflow-session.json          # 📝 Sesión activa (10-50KB)
+│                                   # Solo la sesión en progreso
+│                                   # Se sobrescribe en cada workflow
+│
+└── history/                        # 📚 Historial archivado
+    ├── 2025-12-23.json            # Todas las sesiones del 23/12
+    ├── 2025-12-22.json            # Todas las sesiones del 22/12
+    └── 2025-12-21.json            # Todas las sesiones del 21/12
+                                    # Archivos >30 días se eliminan auto
+```
+
+**Beneficios**:
+- ✅ Sesión activa siempre pequeña (<50KB)
+- ✅ `--resume` siempre rápido
+- ✅ Historial organizado por fecha
+- ✅ Auto-limpieza de archivos antiguos
+- ✅ Auditoría completa disponible
 
 ---
 

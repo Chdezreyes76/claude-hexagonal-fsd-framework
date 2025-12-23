@@ -1,10 +1,12 @@
-# Issue Workflow Orchestrator v2.2 (Autonomous)
+# Issue Workflow Orchestrator v2.2.1 (Autonomous)
 
 Orquesta automáticamente el flujo completo de un issue con **CERO intervención manual**, implementación automática, pre-code-review, auto-corrección y auto-resolución de conflictos.
 
-## Versión: 2.2.0
+## Versión: 2.2.1
 
-**Release**: v1.3.0 (2025-12-22)
+**Release**: v1.3.1 (2025-12-23)
+
+**Actualización**: Optimización de persistencia de sesión con estrategia de "Sesión Activa + Historial"
 
 ### Capacidades Autónomas
 
@@ -15,7 +17,7 @@ Orquesta automáticamente el flujo completo de un issue con **CERO intervención
 5. 🔍 **Pre-code-review** (gate de calidad #2)
 6. 🔄 **Auto-corrección** de code reviews (Fase 4)
 7. 🔧 **Auto-resolución** de conflictos git (Fase 5)
-8. 💾 **Persistencia de sesión** (Fase 6)
+8. 💾 **Persistencia de sesión optimizada** (Fase 6.1 - Sesión activa + Historial)
 9. ⏱️ **Circuit breakers** y timeouts (Fase 6)
 10. 🎯 **Epic breakdown** para issues complejos
 
@@ -119,14 +121,16 @@ PASO 9: Merge y Cleanup
   → Merge + limpieza de ramas
   ↓
 
-PASO 10: Guardar Sesión y Loop (Fase 6) ⭐
-  → Guarda progreso a .claude/session/workflow-session.json
+PASO 10: Guardar Sesión y Loop (Fase 6.1) ⭐
+  → Guarda progreso a .claude/session/workflow-session.json (sesión activa)
   → Verifica circuit breaker (fallos consecutivos)
   → ¿Más issues? → Volver a PASO 1
   → ¿Max alcanzado? → Generar reporte final
+  → Al finalizar: Archivar en .claude/session/history/YYYY-MM-DD.json
+  → Auto-limpieza de archivos >30 días
 ```
 
-## Mejoras v2.2 (Fases 4-7)
+## Mejoras v2.2.1 (Fases 4-7)
 
 ### Fase 4: Auto-Corrección de Code Reviews
 
@@ -176,12 +180,39 @@ git commit
 
 **Resultado**: 67% de conflictos resueltos automáticamente.
 
+### Fase 6.1: Persistencia Optimizada (Sesión Activa + Historial)
+
+Sistema mejorado para evitar archivos grandes y garantizar performance:
+
+**Problema resuelto**:
+- ❌ Antes: Archivo único que crece indefinidamente (500KB+ después de 100 issues)
+- ✅ Ahora: Sesión activa pequeña + historial archivado por día
+
+**Funcionamiento**:
+1. **Durante workflow**: Solo guarda sesión activa (10-50KB)
+2. **Al finalizar**: Archiva en historial diario
+3. **Auto-limpieza**: Borra archivos >30 días automáticamente
+
+**Beneficios**:
+- ⚡ `--resume` siempre rápido (carga <50KB)
+- 📁 Archivos organizados por fecha
+- 🗑️ Limpieza automática sin intervención
+- 📊 Auditoría completa disponible en history/
+
 ### Fase 6: Persistencia de Sesión y Circuit Breakers
 
-**Session Persistence**:
-- Guarda progreso después de cada issue
-- Archivo: `.claude/session/workflow-session.json`
-- Resume con: `--resume=path`
+**Session Persistence (Actualizado v6.1)**:
+- **Estrategia**: Sesión activa + Historial diario
+- **Sesión activa**: `.claude/session/workflow-session.json` (10-50KB)
+  - Solo contiene sesión en progreso
+  - Se sobrescribe en cada nuevo workflow
+  - Rápida de cargar con `--resume`
+- **Historial archivado**: `.claude/session/history/YYYY-MM-DD.json`
+  - Sesiones completadas archivadas por día
+  - Auto-limpieza de archivos >30 días
+  - Auditoría completa disponible
+- Parámetro: `--save-session[=path]`
+- Resume con: `--resume=.claude/session/workflow-session.json`
 
 **Timeout per Issue**:
 - Wrapper con `Promise.race()`
@@ -194,6 +225,16 @@ git commit
 - Detiene workflow para diagnóstico
 - Guarda sesión antes de detener
 - Parámetro: `--max-consecutive-failures=N`
+
+**Estructura de Archivos**:
+```
+.claude/session/
+├── workflow-session.json          # Sesión activa (pequeño)
+└── history/                        # Historial archivado
+    ├── 2025-12-23.json            # Sesiones del 23/12
+    ├── 2025-12-22.json            # Sesiones del 22/12
+    └── 2025-12-21.json            # Auto-limpieza >30 días
+```
 
 ### Fase 7: Alias --autonomous
 
@@ -483,6 +524,7 @@ Resultado esperado:
 
 ---
 
-**Versión**: 2.2.0
-**Fecha**: 2025-12-22
+**Versión**: 2.2.1
+**Fecha**: 2025-12-23
+**Cambios**: Optimización de persistencia de sesión (Fase 6.1)
 **Autor**: Claude Sonnet 4.5 + Carlos Hernandez
