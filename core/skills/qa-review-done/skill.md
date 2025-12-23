@@ -12,22 +12,22 @@ allowed-tools: |
   Read, Glob, Grep,
 
   # Bash - Read Only Operations
-  Bash(ls *), Bash(dir *), Bash(cat *), Bash(type *), Bash(head *), Bash(tail *), Bash(find *), Bash(grep *), Bash(rg *), Bash(pwd *), Bash(cd *),
+  Bash(ls:*), Bash(dir:*), Bash(cat:*), Bash(type:*), Bash(head:*), Bash(tail:*), Bash(find:*), Bash(grep:*), Bash(rg:*), Bash(pwd:*), Bash(cd:*),
 
   # Git - Read Only
-  Bash(git status *), Bash(git log *), Bash(git diff *), Bash(git show *), Bash(git branch *),
+  Bash(git:*),
 
   # GitHub CLI - Read & Write
-  Bash(gh issue view *), Bash(gh issue list *), Bash(gh issue create *), Bash(gh issue comment *), Bash(gh issue edit *),
-  Bash(gh pr view *), Bash(gh pr list *),
-  Bash(gh project view *), Bash(gh project list *), Bash(gh project item-list *),
-  Bash(gh api graphql *),
+  Bash(gh issue:*),
+  Bash(gh pr:*),
+  Bash(gh project:*),
+  Bash(gh api:*),
 
   # TypeScript & Node - Read Only
-  Bash(npx tsc --noEmit *), Bash(npx tsc *), Bash(node --version *), Bash(npm list *),
+  Bash(npx:*), Bash(node:*), Bash(npm:*),
 
   # Python - Read Only
-  Bash(python --version *), Bash(python -c *), Bash(pytest --collect-only *),
+  Bash(python:*), Bash(pytest:*),
 
   # File Operations - Write (for screenshots)
   Write,
