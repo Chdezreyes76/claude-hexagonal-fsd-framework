@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.1] - 2025-12-23
 
+### Added
+
+#### Selective Clean Copy Strategy for Updates 🔄
+- **Smart Update System**: Framework updates now handle structural changes intelligently
+  - New `cleanCopy` flag per directory in update configuration
+  - Removes destination directory before copying when structure changes
+  - Prevents orphaned files from old versions
+  - Added `lib/templates/` directory to update process
+  - Created comprehensive `cli/UPDATE-STRATEGY.md` documentation
+  - **Solves v1.3.0 → v1.3.1 migration**: Skills folder restructure (`.md` → `folder/skill.md`)
+  - **Result**: Clean migrations without manual cleanup required
+  - Example: `node cli/index.js update /path/to/project --verbose`
+
 ### Changed
 
 #### Skills vs Agents Restructuring 🔄
