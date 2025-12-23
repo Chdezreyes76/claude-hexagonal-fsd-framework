@@ -126,11 +126,13 @@ async function updateFramework(targetPath, options = {}) {
 
   try {
     // Directories to copy from framework
+    // cleanCopy: true = remove destination before copying (for structural changes)
     const directoriesToCopy = [
-      { src: 'core/agents', dest: 'agents' },
-      { src: 'core/commands', dest: 'commands' },
-      { src: 'core/skills', dest: 'skills' },
-      { src: 'core/settings.json.tmpl', dest: 'settings.json.tmpl' }
+      { src: 'core/agents', dest: 'agents', cleanCopy: false },
+      { src: 'core/commands', dest: 'commands', cleanCopy: false },
+      { src: 'core/skills', dest: 'skills', cleanCopy: true },  // v1.3.1: changed to folder structure
+      { src: 'templates', dest: 'lib/templates', cleanCopy: false },
+      { src: 'core/settings.json.tmpl', dest: 'settings.json.tmpl', cleanCopy: false, isFile: true }
     ];
 
     for (const dir of directoriesToCopy) {
@@ -145,9 +147,22 @@ async function updateFramework(targetPath, options = {}) {
       }
 
       if (!dryRun) {
-        // Check if destination exists
+        // Check if destination exists before clean copy
         const isUpdate = fs.existsSync(destPath);
 
+        // Clean copy: remove destination directory/file before copying
+        if (dir.cleanCopy && isUpdate) {
+          await fs.remove(destPath);
+          if (verbose) {
+            console.log(chalk.gray(`   Cleaned: ${dir.dest} (structural change)`));
+          }
+        }
+
+        // Ensure parent directory exists for nested paths (e.g., lib/templates)
+        const parentDir = path.dirname(destPath);
+        await fs.ensureDir(parentDir);
+
+        // Copy files
         await fs.copy(srcPath, destPath, {
           overwrite: true,
           filter: (src) => {
@@ -158,7 +173,7 @@ async function updateFramework(targetPath, options = {}) {
           }
         });
 
-        if (isUpdate) {
+        if (isUpdate && !dir.cleanCopy) {
           filesUpdated++;
         } else {
           filesCopied++;
@@ -166,7 +181,7 @@ async function updateFramework(targetPath, options = {}) {
       }
 
       if (verbose) {
-        const action = fs.existsSync(destPath) ? 'Updated' : 'Copied';
+        const action = dir.cleanCopy ? 'Rebuilt' : (fs.existsSync(destPath) ? 'Updated' : 'Copied');
         console.log(chalk.gray(`   ${action}: ${dir.dest}`));
       }
     }
@@ -191,7 +206,8 @@ async function updateFramework(targetPath, options = {}) {
     }
 
     if (!dryRun) {
-      // Process templates only in framework directories (agents, commands, skills)
+      // Process templates only in framework configuration files (agents, commands, skills)
+      // NOTE: lib/templates are code templates used by scaffold commands, not processed here
       let totalProcessed = 0;
       const frameworkDirs = ['agents', 'commands', 'skills'];
 

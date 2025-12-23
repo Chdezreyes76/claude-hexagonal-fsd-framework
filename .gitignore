@@ -27,6 +27,9 @@ desktop.ini
 .claude/qa-reports/
 qa-reports/
 
+# Framework testing artifacts
+.claude/
+
 # Logs
 logs/
 *.log
