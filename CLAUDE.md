@@ -15,9 +15,9 @@ claude-hexagonal-fsd-framework/
 │   ├── index.js              # CLI entry point
 │   └── package.json          # CLI dependencies (inquirer, chalk, ora, mustache, ajv)
 ├── core/                     # Framework components copied to target projects
-│   ├── skills/               # 11 specialized skills for Claude Code
+│   ├── skills/               # 6 skills (knowledge & patterns for Claude Code)
 │   ├── commands/             # 20+ slash commands organized by category
-│   ├── agents/               # 3 specialized agents (planner, reviewer, debugger)
+│   ├── agents/               # 8 autonomous agents (executors with retry logic)
 │   └── settings.json.tmpl    # Claude Code permissions template
 ├── templates/                # Mustache templates for code generation
 │   ├── backend/              # FastAPI hexagonal architecture templates
@@ -138,7 +138,7 @@ Generated `claude.config.json` in target projects:
 ```json
 {
   "version": "1.0.0",
-  "frameworkVersion": "1.3.0",
+  "frameworkVersion": "1.3.1",
   "project": { "name", "nameSnake", "nameKebab", "version" },
   "team": { "owner": { "name", "email" }, "github": { "owner", "repo", "mainBranch" } },
   "stack": { "backend", "frontend", "database" },
@@ -151,19 +151,35 @@ Generated `claude.config.json` in target projects:
 
 ## Skills System
 
-Skills are knowledge bases for Claude Code. Key skills:
+**Skills** are knowledge bases that provide patterns and conventions to Claude Code. They're loaded synchronously into context.
 
-- **hexagonal-architecture**: Backend patterns, naming conventions, data flow
+Located in: `core/skills/{skill-name}/skill.md`
+
+Key skills:
+- **hexagonal-architecture**: Backend patterns, naming conventions, data flow (Ports & Adapters)
 - **feature-sliced-design**: Frontend FSD patterns, dependency rules, React 19 + TanStack Query
-- **backend-implementer**: Autonomous agent that implements backend issues
-- **frontend-implementer**: Autonomous agent that implements frontend issues
-- **fullstack-implementer**: Coordinates backend + frontend implementation
-- **issue-analyzer**: Semantically detects if issue is backend/frontend/fullstack
-- **test-runner**: Validates tests before commits
-- **qa-review-done**: Automated QA reviews for issues in "Done" status
-- **github-workflow**: GitHub conventions (branches, commits, PRs)
+- **github-workflow**: GitHub conventions (branches, commits, PRs, labels)
 - **alembic-migrations**: Database migration patterns with Alembic
-- **issue-workflow**: Complete issue orchestration with autonomous mode (auto-select → auto-implement → auto-correct reviews → auto-resolve conflicts → auto-merge)
+- **issue-workflow**: Complete issue orchestration workflow patterns
+- **qa-review-done**: Automated QA review patterns for issues in "Done" status
+
+## Agents System
+
+**Agents** are autonomous executors that handle complex tasks with isolated context and retry logic. They're invoked via the Task tool.
+
+Located in: `core/agents/{agent-name}.md`
+
+Key agents:
+- **backend-implementer**: Implements backend issues following hexagonal architecture
+- **frontend-implementer**: Implements frontend issues following FSD
+- **fullstack-implementer**: Coordinates backend + frontend implementation
+- **issue-analyzer**: Semantically detects issue type (backend/frontend/fullstack) with 90%+ accuracy
+- **test-runner**: Validates tests before commits (pytest/npm)
+- **issue-planner**: Analyzes issues and proposes implementation plans
+- **code-reviewer**: Reviews code against architecture patterns (returns structured JSON feedback)
+- **debugger**: Diagnostics and error resolution
+
+**Key Difference**: Skills provide knowledge (via `Skill(name)`), Agents execute tasks (via `Task(subagent_type="name")`)
 
 ## Commands System
 
@@ -299,12 +315,30 @@ Typical autonomous session (20 issues):
    ```markdown
    ---
    name: skill-name
-   description: Brief description
-   allowed-tools: Read, Glob, Grep, Write, Edit
+   description: Brief description for knowledge/patterns
    ---
    ```
 3. Add supporting files (examples, patterns) in same directory
-4. Update README.md to document the new skill
+4. Add to `core/settings.json.tmpl` under "FRAMEWORK SKILLS"
+5. Update README.md to document the new skill
+
+### When Adding New Agents
+
+1. Create file `core/agents/{agent-name}.md`
+2. Add frontmatter with agent metadata:
+   ```markdown
+   ---
+   name: agent-name
+   description: Brief description of autonomous task
+   allowed-tools: Read, Glob, Grep, Write, Edit, Bash(command:*)
+   agent-type: executor
+   retry-attempts: 3
+   ---
+   ```
+3. Define clear execution steps and output format (preferably JSON)
+4. Document which skills the agent should load
+5. Add comments in `core/settings.json.tmpl` under "FRAMEWORK AGENTS"
+6. Update README.md to document the new agent
 
 ### When Adding New Commands
 
@@ -379,11 +413,12 @@ When adding new Bash commands to skills/commands, update `core/settings.json.tmp
 
 ## Version Management
 
-- Framework version in `cli/package.json` (currently 1.3.0)
+- Framework version in `cli/package.json` (currently 1.3.1)
 - Target project version set during init wizard
 - Version compatibility tracked in generated `claude.config.json`
 - Follow Semantic Versioning (MAJOR.MINOR.PATCH)
 - v1.3.0 introduced autonomous workflow capabilities (zero-intervention mode)
+- v1.3.1 restructured skills vs agents for clarity and Claude Code compatibility
 
 ## Common Pitfalls
 

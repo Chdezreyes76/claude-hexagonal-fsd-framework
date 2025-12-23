@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-12-23
+
+### Changed
+
+#### Skills vs Agents Restructuring 🔄
+- **Separated Skills from Agents**: Clarified distinction between knowledge bases and autonomous executors
+  - **Skills** (6 total): Knowledge/patterns loaded synchronously into Claude's context
+    * `hexagonal-architecture` - Backend patterns (Ports & Adapters)
+    * `feature-sliced-design` - Frontend FSD patterns
+    * `github-workflow` - GitHub conventions
+    * `alembic-migrations` - Database migration patterns
+    * `issue-workflow` - Workflow orchestration patterns
+    * `qa-review-done` - QA automation patterns
+  - **Agents** (8 total): Autonomous executors with isolated context and retry logic
+    * `backend-implementer` - Implements backend issues
+    * `frontend-implementer` - Implements frontend issues (fixes "agent not found" error)
+    * `fullstack-implementer` - Coordinates backend + frontend
+    * `issue-analyzer` - Detects issue type semantically
+    * `test-runner` - Validates tests before commits
+    * `issue-planner` - Proposes implementation plans
+    * `code-reviewer` - Reviews code against patterns
+    * `debugger` - Diagnostics and error resolution
+  - **Location Change**: Moved 5 autonomous executors from `core/skills/` to `core/agents/`
+  - **Invocation**: Skills use `Skill(name)`, Agents use `Task(subagent_type="name")`
+
+#### File Naming Convention Fix 🔧
+- **Renamed skill files**: `SKILL.md` → `skill.md` (9 files)
+  - Claude Code expects lowercase `skill.md` filename
+  - Fixes skill discovery issues
+  - Removed duplicate `core/skills/SKILL.md`
+
+#### Documentation Updates 📝
+- **Updated all documentation** to reflect skills vs agents structure:
+  - `README.md`: Updated component counts and descriptions
+  - `CLAUDE.md`: Added separate "Skills System" and "Agents System" sections
+  - `cli/README.md`: Updated directory structure examples
+  - `core/settings.json.tmpl`: Clarified Skills vs Agents permissions
+- **Version bump**: 1.3.0 → 1.3.1 across all files
+- **Added guidelines**: How to add new skills vs new agents
+
+### Fixed
+- **"frontend-implementer agent not found" error**: Agent now correctly located in `core/agents/`
+- **Skill discovery**: All skills now use lowercase `skill.md` filename
+
 ## [1.3.0] - 2025-12-22
 
 ### Added

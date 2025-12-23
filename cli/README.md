@@ -112,25 +112,28 @@ your-project/
 │   ├── claude.config.json          # Your project configuration
 │   ├── settings.json               # Framework settings
 │   ├── settings.local.json         # Local settings (gitignored)
-│   ├── agents/                     # AI agents (planner, reviewer, debugger)
+│   ├── agents/                     # 8 autonomous agents (executors)
+│   │   ├── backend-implementer.md
+│   │   ├── frontend-implementer.md
+│   │   ├── fullstack-implementer.md
+│   │   ├── issue-analyzer.md
+│   │   ├── test-runner.md
+│   │   ├── issue-planner.md
+│   │   ├── code-reviewer.md
+│   │   └── debugger.md
 │   ├── commands/                   # 20+ commands
 │   │   ├── db/                    # Database commands
 │   │   ├── github/                # GitHub integration commands
 │   │   ├── quality/               # Code quality commands
 │   │   ├── scaffold/              # Scaffolding commands
 │   │   └── workflow/              # Workflow automation
-│   ├── skills/                     # 11 specialized skills
+│   ├── skills/                     # 6 skills (knowledge & patterns)
 │   │   ├── hexagonal-architecture/
 │   │   ├── feature-sliced-design/
-│   │   ├── backend-implementer/
-│   │   ├── frontend-implementer/
-│   │   ├── fullstack-implementer/
-│   │   ├── issue-analyzer/
-│   │   ├── test-runner/
-│   │   ├── qa-review-done/
 │   │   ├── github-workflow/
 │   │   ├── alembic-migrations/
-│   │   └── issue-workflow/
+│   │   ├── issue-workflow/
+│   │   └── qa-review-done/
 │   ├── hooks/                      # Claude Code hooks
 │   ├── lib/                        # Utility libraries
 │   └── qa-reports/                 # QA reports (gitignored)
@@ -325,8 +328,9 @@ After running the wizard:
 
 1. Review `.claude/claude.config.json`
 2. Explore available commands in `.claude/commands/`
-3. Check skills in `.claude/skills/`
-4. Start using Claude Code with the framework
+3. Check skills (knowledge/patterns) in `.claude/skills/`
+4. Check agents (autonomous executors) in `.claude/agents/`
+5. Start using Claude Code with the framework
 
 ## Support
 

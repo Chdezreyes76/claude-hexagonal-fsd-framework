@@ -175,18 +175,27 @@ The `--autonomous` flag is a smart alias that automatically enables:
 
 ## Framework Components
 
-### Skills (11 total)
-- `hexagonal-architecture`: Backend Hexagonal patterns
-- `feature-sliced-design`: Frontend FSD patterns
-- `backend-implementer`: Auto-implements backend issues
-- `frontend-implementer`: Auto-implements frontend issues
-- `fullstack-implementer`: Coordinates backend + frontend
-- `issue-analyzer`: Detects issue type semantically
-- `test-runner`: Validates tests before commits
-- `qa-review-done`: Automated QA reviews
-- `github-workflow`: GitHub conventions
-- `alembic-migrations`: Database migration patterns
-- `issue-workflow`: Complete issue orchestration
+### Skills (6 total) - Knowledge & Patterns
+Skills provide context, patterns, and conventions to Claude. They're loaded synchronously as documentation.
+
+- `hexagonal-architecture`: Backend Hexagonal patterns (Ports & Adapters)
+- `feature-sliced-design`: Frontend FSD patterns (React 19 + TypeScript)
+- `github-workflow`: GitHub conventions (commits, branches, PRs)
+- `alembic-migrations`: Database migration patterns (Alembic)
+- `issue-workflow`: Complete issue orchestration workflow
+- `qa-review-done`: Automated QA review patterns
+
+### Agents (8 total) - Autonomous Executors
+Agents execute complex tasks autonomously with isolated context and retry logic.
+
+- `backend-implementer`: Auto-implements backend issues (hexagonal architecture)
+- `frontend-implementer`: Auto-implements frontend issues (FSD)
+- `fullstack-implementer`: Coordinates backend + frontend implementation
+- `issue-analyzer`: Detects issue type semantically (90%+ accuracy)
+- `test-runner`: Validates tests before commits (pytest/npm)
+- `issue-planner`: Analyzes and proposes implementation plans
+- `code-reviewer`: Reviews code against architecture patterns
+- `debugger`: Diagnostics and error resolution
 
 ### Commands (20+)
 
@@ -216,16 +225,11 @@ The `--autonomous` flag is a smart alias that automatically enables:
 - `/workflow:issue-complete` - Full issue workflow (implement → review → merge → next)
 - `/workflow:issue-complete --autonomous` - Fully autonomous loop mode ⭐ NEW
 
-### Agents (3 total)
-- `issue-planner`: Analyzes and proposes implementation plans
-- `code-reviewer`: Reviews code against architecture patterns
-- `debugger`: Diagnostics and error resolution
-
 ## Version
 
-- **Current**: 1.3.0
+- **Current**: 1.3.1
 - **Status**: Stable
-- **Release Date**: December 22, 2025
+- **Release Date**: December 23, 2025
 
 ### What's New in 1.3.0 ⭐
 
