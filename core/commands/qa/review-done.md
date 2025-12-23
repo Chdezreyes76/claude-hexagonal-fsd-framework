@@ -1,6 +1,6 @@
 ---
 description: Revisar automáticamente todos los issues en Done de un proyecto, crear issues por errores, y mover a Reviewed solo los que pasan QA
-allowed-tools: Task, Read, Glob, Grep, Bash(gh *), Bash(git *), Bash(npx *), Bash(node *), Write, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_evaluate, mcp__playwright__browser_network_requests
+allowed-tools: Task, Read, Glob, Grep, Bash(gh:*), Bash(git:*), Bash(npx:*), Bash(node:*), Write, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_evaluate, mcp__playwright__browser_network_requests
 ---
 
 # QA Review Done - Automated Issue Verification with Auto-Issue Creation
@@ -70,7 +70,7 @@ if (skipBrowser) console.log('⚠️  Skipping browser verification')
 if (dryRun) console.log('⚠️  DRY RUN - No changes will be made')
 ```
 
-### PASO 2: Invocar Skill qa-review-done
+### PASO 2: Invocar Skill qa:review-done
 
 ```javascript
 // El skill ejecuta:
@@ -88,7 +88,7 @@ if (dryRun) console.log('⚠️  DRY RUN - No changes will be made')
 //   5. **COMENTAR EN ISSUE ORIGINAL** con enlaces a issues creados
 //   6. **MOVER A REVIEWED** solo si 0 errores detectados
 
-await Skill('qa-review-done', {
+await Skill('qa:review-done', {
   projectNumber: projectNumber,
   skipBrowser: skipBrowser,
   dryRun: dryRun
@@ -452,4 +452,4 @@ Esto indica problemas sistémicos. Opciones:
 
 - `/quality:review` - Revisar código antes de commit
 - `/github:issue` - Crear issue manualmente
-- Skill `qa-review-done` - Documentación completa del skill
+- Skill `qa:review-done` - Documentación completa del skill
