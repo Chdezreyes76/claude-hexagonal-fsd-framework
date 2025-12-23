@@ -1,49 +1,145 @@
-﻿---
-name: qa:review-done
-description: Revisar automáticamente todos los issues en Done de un proyecto y moverlos a Reviewed si pasan QA. Envía email con resumen al completar.
-allowed-tools: Read, Glob, Grep, Bash(gh:*), Bash(cd:*), Bash(npx:*), Bash(curl:*), MCPSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_network_requests
+---
+name: qa-review-done
+description: Revisar automáticamente todos los issues en Done de un proyecto, crear issues por errores detectados, y mover a Reviewed solo los que pasan todas las verificaciones
 agent-type: qa-validator
 retry-attempts: 0
+execution-mode: autonomous
+auto-approve: read-only
+
+# Tool Categories
+allowed-tools: |
+  # File Operations - Read
+  Read, Glob, Grep,
+
+  # Bash - Read Only Operations
+  Bash(ls *), Bash(dir *), Bash(cat *), Bash(type *), Bash(head *), Bash(tail *), Bash(find *), Bash(grep *), Bash(rg *), Bash(pwd *), Bash(cd *),
+
+  # Git - Read Only
+  Bash(git status *), Bash(git log *), Bash(git diff *), Bash(git show *), Bash(git branch *),
+
+  # GitHub CLI - Read & Write
+  Bash(gh issue view *), Bash(gh issue list *), Bash(gh issue create *), Bash(gh issue comment *), Bash(gh issue edit *),
+  Bash(gh pr view *), Bash(gh pr list *),
+  Bash(gh project view *), Bash(gh project list *), Bash(gh project item-list *),
+  Bash(gh api graphql *),
+
+  # TypeScript & Node - Read Only
+  Bash(npx tsc --noEmit *), Bash(npx tsc *), Bash(node --version *), Bash(npm list *),
+
+  # Python - Read Only
+  Bash(python --version *), Bash(python -c *), Bash(pytest --collect-only *),
+
+  # File Operations - Write (for screenshots)
+  Write,
+
+  # Playwright MCP Tools
+  mcp__playwright__browser_navigate,
+  mcp__playwright__browser_click,
+  mcp__playwright__browser_snapshot,
+  mcp__playwright__browser_console_messages,
+  mcp__playwright__browser_take_screenshot,
+  mcp__playwright__browser_evaluate,
+  mcp__playwright__browser_network_requests
+
+# Commands that can be invoked
+invokes-commands: |
+  /github:issue
 ---
 
-# QA Review Done - Automated Issue Verification
+# QA Review Done - Automated Issue Verification with Auto-Issue Creation
 
-Agente autónomo que revisa y verifica todos los issues en columna "Done" de un proyecto GitHub, ejecutando validaciones de QA completas y moviendo issues aprobados a "Reviewed".
+Agente autónomo que revisa todos los issues en columna "Done", ejecuta verificaciones exhaustivas con Playwright, y **crea issues automáticamente por cada error detectado** para cerrar el ciclo de feedback.
 
 ## Uso
 
 ```bash
-/qa:review-done <numero-proyecto>
-# Ejemplo: /qa:review-done 7
+/qa:review-done --project=<numero>
+# Ejemplo: /qa:review-done --project=7
 ```
 
-## Responsabilidades
+## Responsabilidades Principales
 
-1. ✅ Obtener todos los issues en columna "Done" del proyecto especificado
+1. ✅ Obtener todos los issues en columna "Done" del proyecto
 2. ✅ Para cada issue:
-   - Leer descripción y criterios de aceptación
-   - Verificar archivos mencionados existen y tienen cambios correctos
-   - Ejecutar compilación TypeScript (frontend)
-   - Abrir navegador y navegar a páginas relevantes
-   - Capturar y analizar errores de consola
-   - **Analizar network requests (POST/PUT/DELETE) y validar responses**
-   - Verificar status codes, response bodies, y tiempos de respuesta
-   - Detectar errores de API (4xx, 5xx, CORS, timeouts)
-   - Tomar screenshots como evidencia
-3. ✅ Mover issues aprobados a columna "Reviewed"
-4. ✅ Generar reporte detallado con estadísticas (incluye análisis de network)
-5. ✅ **Enviar email a {{userEmail}} con resumen**
+   - Verificar archivos existen
+   - Compilar TypeScript (frontend)
+   - **Verificaciones exhaustivas en navegador con Playwright:**
+     - Console messages (errors, warnings, logs)
+     - Network requests completas (GET, POST, PUT, DELETE)
+     - Interacciones de usuario (click, form submit, navigation)
+     - Performance (load time, response time, memory)
+     - Estado de aplicación (React state, Query cache, localStorage)
+   - **Capturar evidencia (screenshots, logs, network traces)**
+3. ✅ **Crear issue automáticamente por cada error detectado** usando `/github:issue`
+4. ✅ **Comentar en issue original** con enlaces a issues creados
+5. ✅ **Mover a "Reviewed" SOLO si 0 errores detectados**
+6. ✅ Mostrar resumen final simplificado
 
-## Proceso de Verificación por Issue
+## Flujo de Verificación por Issue
 
-### PASO 1: Obtener Issues en Done
+```
+Para cada issue en "Done":
+  ├─ TypeScript compile
+  │  └─ ❌ Error → /github:issue "[QA] TypeScript error en #N" → Continue
+  │
+  ├─ Files exist
+  │  └─ ❌ Missing → /github:issue "[QA] Missing files en #N" → Continue
+  │
+  ├─ Browser Verification (Playwright MCP)
+  │  │
+  │  ├─ CONSOLE EXHAUSTIVA
+  │  │  ├─ Capturar ALL console messages (error, warning, info, log)
+  │  │  ├─ Clasificar por severidad (CRITICAL, HIGH, MEDIUM, LOW)
+  │  │  └─ ❌ CRITICAL/HIGH → /github:issue "[QA] Console error en #N"
+  │  │
+  │  ├─ NETWORK EXHAUSTIVA
+  │  │  ├─ Capturar TODAS las requests (GET, POST, PUT, DELETE)
+  │  │  ├─ Analizar cada request:
+  │  │  │  ├─ Status code correcto (2xx)
+  │  │  │  ├─ Response body válido (JSON parse OK)
+  │  │  │  ├─ Headers correctos (Content-Type, CORS)
+  │  │  │  ├─ Tiempo respuesta <3s
+  │  │  │  └─ No CORS/Auth errors
+  │  │  ├─ ❌ API Error 500 → /github:issue "[QA] API Error 500 en #N"
+  │  │  ├─ ❌ CORS Error → /github:issue "[QA] CORS error en #N"
+  │  │  └─ ❌ Validation 422 → /github:issue "[QA] Validation error en #N"
+  │  │
+  │  ├─ INTERACCIONES USUARIO
+  │  │  ├─ Identificar acciones del issue (ej: "crear usuario")
+  │  │  ├─ Simular flujo completo:
+  │  │  │  ├─ Click en botón → Screenshot
+  │  │  │  ├─ Llenar formulario → Screenshot
+  │  │  │  ├─ Submit → Verificar success/error
+  │  │  │  └─ Verificar redirección correcta
+  │  │  ├─ Capturar console/network durante interacción
+  │  │  └─ ❌ Error → /github:issue "[QA] Interaction error en #N"
+  │  │
+  │  ├─ PERFORMANCE & ESTADO
+  │  │  ├─ Tiempo de carga página <3s
+  │  │  ├─ Response time APIs <3s
+  │  │  ├─ Verificar React state (no queries infinitas)
+  │  │  ├─ Verificar localStorage/sessionStorage
+  │  │  └─ ⚠️ Slow (>5s) → /github:issue "[QA] Performance issue en #N"
+  │  │
+  │  └─ SCREENSHOTS & EVIDENCIA
+  │     ├─ Capturar screenshot inicial
+  │     ├─ Capturar screenshot por acción
+  │     └─ Guardar en issue creado
+  │
+  └─ RESULTADO FINAL:
+     ├─ 0 errores → ✅ Move to "Reviewed"
+     ├─ 1-3 errores → ❌ Stay in "Done" + N issues creados + Comment
+     └─ >5 errores → ❌ Stay in "Done" + Issues agrupados + Comment
+```
+
+## PASO 1: Obtener Issues en Done
 
 ```bash
-# Consultar GitHub GraphQL API
+# Consultar GitHub GraphQL API para obtener issues en columna "Done"
 gh api graphql -f query='
-query {
-  node(id: "PROJECT_ID") {
-    ... on ProjectV2 {
+query($owner: String!, $repo: String!, $projectNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    projectV2(number: $projectNumber) {
       items(first: 100) {
         nodes {
           id
@@ -52,6 +148,7 @@ query {
               number
               title
               body
+              url
             }
           }
           fieldValueByName(name: "Status") {
@@ -63,601 +160,905 @@ query {
       }
     }
   }
-}'
+}' -f owner='{{githubOwner}}' -f repo='{{githubRepo}}' -F projectNumber=<numero>
 ```
 
-**Output esperado:**
-```json
-{
-  "issues_in_done": [
-    {"number": 210, "title": "refactor(entities): crear estructura usuario entity"},
-    {"number": 211, "title": "refactor(entities): crear estructura centros-coste entity"},
-    ...
-  ]
-}
+**Filtrar solo issues con Status="Done":**
+```javascript
+const issuesInDone = response.data.repository.projectV2.items.nodes
+  .filter(item => item.fieldValueByName?.name === "Done")
+  .map(item => ({
+    number: item.content.number,
+    title: item.content.title,
+    body: item.content.body,
+    url: item.content.url,
+    itemId: item.id
+  }))
 ```
 
-### PASO 2: Verificación Individual por Issue
+## PASO 2: Verificación Exhaustiva con Playwright
 
-Para cada issue en Done, ejecutar:
+Para cada issue en Done:
 
-#### A. Leer y Analizar Issue
+### A. Análisis del Issue
 
 ```bash
-gh issue view <numero> --json number,title,body
+gh issue view <numero> --json number,title,body,labels
 ```
 
-**Analizar:**
-- Descripción del cambio
-- Archivos modificados mencionados
-- Criterios de aceptación
-- Tipo de cambio (backend/frontend/fullstack)
+Extraer información:
+- Tipo de issue (backend/frontend/fullstack)
+- Archivos mencionados
+- Rutas/páginas afectadas
+- Acciones esperadas (ej: "crear usuario", "editar producto")
 
-#### B. Verificar Archivos Existen
+### B. Verificar Archivos
 
 ```bash
-# Si el issue menciona archivos, verificarlos
-# Ejemplo: "frontend/src/entities/usuario/api/usuario-api.ts"
-ls -la frontend/src/entities/usuario/api/usuario-api.ts
+# Verificar cada archivo mencionado en el issue
+for file in ${files[@]}; do
+  if [ ! -f "$file" ]; then
+    echo "❌ File not found: $file"
+    errors+=("Missing file: $file")
+  fi
+done
 ```
 
-**Verificar:**
-- ✅ Archivos mencionados existen
-- ✅ No hay imports rotos de @/services
-- ✅ Estructura correcta según FSD
+**Si hay archivos faltantes:**
+```bash
+/github:issue \
+  --title "[QA] Missing files en #${issue_number}: ${issue_title}" \
+  --body "## Issue Original Bloqueado
+#${issue_number} - ${issue_title}
 
-#### C. Compilación TypeScript
+## Archivos Faltantes
+${missing_files_list}
+
+## Impacto
+- Severidad: CRITICAL
+- Bloquea: #${issue_number}
+
+## Acción Requerida
+Crear los archivos faltantes o actualizar referencias en el código." \
+  --label "bug,qa-failed,auto-created,priority:high" \
+  --linked-to "${issue_number}"
+```
+
+### C. Compilación TypeScript
 
 ```bash
 cd frontend
-npx tsc --noEmit
+npx tsc --noEmit 2>&1 | tee /tmp/tsc_errors_${issue_number}.log
 ```
 
-**Criterio:**
-- ✅ PASS: Sin errores de compilación
-- ❌ FAIL: Errores de tipos → Mantener en Done
+**Si hay errores TypeScript:**
+```bash
+# Parsear errores y crear issue
+tsc_errors=$(cat /tmp/tsc_errors_${issue_number}.log)
 
-#### D. Verificación en Navegador
+/github:issue \
+  --title "[QA] TypeScript compilation error en #${issue_number}" \
+  --body "## Issue Original Bloqueado
+#${issue_number} - ${issue_title}
 
-```javascript
-// 1. Navegar a localhost:3000
-await mcp__playwright__browser_navigate({ url: "http://localhost:3000" })
+## Errores de Compilación TypeScript
+\`\`\`
+${tsc_errors}
+\`\`\`
 
-// 2. Identificar páginas relevantes según issue
-// Ejemplo: Issue sobre usuarios → navegar a /settings y click "Usuarios"
+## Archivos Afectados
+${affected_files}
 
-// 3. Tomar snapshot de la página
-await mcp__playwright__browser_snapshot()
+## Impacto
+- Severidad: CRITICAL
+- Bloquea: #${issue_number}
+- Rompe build de producción
 
-// 4. Capturar errores de consola
-await mcp__playwright__browser_console_messages({ level: "error" })
-
-// 5. Tomar screenshot como evidencia
-await mcp__playwright__browser_take_screenshot()
+## Acción Requerida
+Corregir los errores de tipos antes de mover a Reviewed." \
+  --label "bug,qa-failed,typescript,auto-created,priority:high"
 ```
 
-**Criterios:**
-- ✅ PASS: 0 errores de consola
-- ❌ FAIL: Errores en consola → Mantener en Done
-
-#### E. Análisis de Network Requests (API Validation)
-
-**IMPORTANTE:** Esta es la verificación MÁS CRÍTICA para validar que el backend y frontend se comunican correctamente.
+### D. Verificación Browser - Console Exhaustiva
 
 ```javascript
-// 1. Capturar todas las network requests durante la navegación
+// 1. Navegar a la aplicación
+await mcp__playwright__browser_navigate({
+  url: "http://localhost:3000"
+})
+
+// 2. Identificar rutas relevantes del issue
+const routes = extractRoutesFromIssue(issueBody)
+// Ejemplo: ["/settings", "/usuarios", "/usuarios/crear"]
+
+for (const route of routes) {
+  console.log(`Navigating to ${route}...`)
+
+  // Navegar a la ruta
+  await mcp__playwright__browser_navigate({
+    url: `http://localhost:3000${route}`
+  })
+
+  // Esperar carga completa
+  await new Promise(resolve => setTimeout(resolve, 2000))
+
+  // Capturar TODOS los mensajes de consola
+  const consoleMessages = await mcp__playwright__browser_console_messages()
+
+  // Clasificar por severidad
+  const errors = consoleMessages.filter(m => m.type === 'error')
+  const warnings = consoleMessages.filter(m => m.type === 'warning')
+
+  // Analizar errores CRÍTICOS
+  const criticalErrors = errors.filter(err =>
+    err.text.includes('Uncaught') ||
+    err.text.includes('TypeError') ||
+    err.text.includes('ReferenceError') ||
+    err.text.includes('failed to fetch') ||
+    err.text.includes('Network request failed')
+  )
+
+  // Analizar errores HIGH (React warnings importantes)
+  const highErrors = warnings.filter(warn =>
+    warn.text.includes('Warning: Can\'t perform a React state update') ||
+    warn.text.includes('Warning: Each child in a list should have a unique "key"') ||
+    warn.text.includes('deprecated')
+  )
+
+  // Capturar screenshot si hay errores
+  if (criticalErrors.length > 0 || highErrors.length > 0) {
+    const screenshot = await mcp__playwright__browser_take_screenshot({
+      path: `.claude/qa-screenshots/issue-${issueNumber}-${route.replace(/\//g, '_')}-errors.png`
+    })
+
+    console.log(`❌ Found ${criticalErrors.length} critical errors in ${route}`)
+  }
+}
+```
+
+**Crear issue por cada error de consola CRITICAL:**
+```bash
+/github:issue \
+  --title "[QA] Console error en #${issue_number}: ${error_summary}" \
+  --body "## Issue Original Bloqueado
+#${issue_number} - ${issue_title}
+
+## Error de Consola JavaScript
+\`\`\`
+${error_text}
+\`\`\`
+
+## Ubicación
+- Ruta: ${route}
+- Archivo: ${source_file}
+- Línea: ${line_number}
+
+## Contexto
+${error_stacktrace}
+
+## Screenshot
+![Error Screenshot](.claude/qa-screenshots/issue-${issueNumber}-errors.png)
+
+## Impacto
+- Severidad: CRITICAL
+- Bloquea: #${issue_number}
+- Afecta funcionalidad de usuario
+
+## Pasos para Reproducir
+1. Navegar a ${route}
+2. ${action_performed}
+3. Observar error en consola
+
+## Acción Requerida
+Corregir el error JavaScript antes de mover a Reviewed." \
+  --label "bug,qa-failed,javascript,auto-created,priority:high"
+```
+
+### E. Verificación Browser - Network Exhaustiva
+
+```javascript
+// Capturar TODAS las network requests durante navegación
 const networkRequests = await mcp__playwright__browser_network_requests()
 
-// 2. Filtrar y analizar POST requests
-const postRequests = networkRequests.filter(req => req.method === 'POST')
+console.log(`Total requests captured: ${networkRequests.length}`)
 
-// 3. Analizar cada POST request
-for (const request of postRequests) {
-  console.log(`Analyzing POST: ${request.url}`)
-  console.log(`Request Body: ${request.postData}`)
-  console.log(`Response Status: ${request.response.status}`)
-  console.log(`Response Body: ${request.response.body}`)
-}
-```
+// Clasificar por método
+const getRequests = networkRequests.filter(r => r.method === 'GET')
+const postRequests = networkRequests.filter(r => r.method === 'POST')
+const putRequests = networkRequests.filter(r => r.method === 'PUT')
+const deleteRequests = networkRequests.filter(r => r.method === 'DELETE')
 
-**Criterios de Validación - POST Requests:**
+console.log(`GET: ${getRequests.length}, POST: ${postRequests.length}, PUT: ${putRequests.length}, DELETE: ${deleteRequests.length}`)
 
-✅ **PASS si:**
-- Status code: 200 (OK), 201 (Created), 204 (No Content)
-- Response body es JSON válido (no HTML de error)
-- Response no contiene mensajes de error
-- Request body tiene estructura correcta
-- Headers incluyen `Content-Type: application/json`
-- Tiempo de respuesta < 5 segundos
+// Analizar cada POST/PUT/DELETE request (CRÍTICO para backend)
+const criticalRequests = [...postRequests, ...putRequests, ...deleteRequests]
 
-❌ **FAIL si:**
-- Status code: 4xx (Client Error), 5xx (Server Error)
-- Response body contiene `"error"`, `"message": "Internal Server Error"`
-- Response es HTML en lugar de JSON (indica error no manejado)
-- Request body tiene campos faltantes o inválidos
-- Timeout (> 10 segundos)
+for (const request of criticalRequests) {
+  console.log(`\nAnalyzing ${request.method} ${request.url}`)
 
-**Ejemplo de Análisis Detallado:**
+  // 1. Verificar status code
+  const status = request.response.status
+  console.log(`  Status: ${status}`)
 
-```javascript
-// Analizar POST request a /api/v1/usuarios
-const usuariosPost = networkRequests.find(req =>
-  req.method === 'POST' && req.url.includes('/api/v1/usuarios')
-)
+  if (status >= 400) {
+    console.log(`  ❌ FAIL: HTTP ${status}`)
 
-if (usuariosPost) {
-  // Validar Request
-  const requestBody = JSON.parse(usuariosPost.postData)
-  console.log('✅ Request Body:', requestBody)
-
-  // Verificar campos requeridos
-  const requiredFields = ['nombre', 'email', 'rol']
-  const missingFields = requiredFields.filter(field => !requestBody[field])
-
-  if (missingFields.length > 0) {
-    console.log(`❌ FAIL: Missing fields: ${missingFields.join(', ')}`)
-    return { passed: false, reason: `Missing required fields: ${missingFields}` }
-  }
-
-  // Validar Response
-  const response = usuariosPost.response
-  console.log('Response Status:', response.status)
-  console.log('Response Body:', response.body)
-
-  if (response.status >= 400) {
-    console.log(`❌ FAIL: HTTP ${response.status} - ${response.statusText}`)
-    return {
-      passed: false,
-      reason: `API error: ${response.status} ${response.statusText}`,
-      response_body: response.body
+    // Parsear response body para obtener detalles del error
+    let errorDetail = ''
+    try {
+      const responseBody = JSON.parse(request.response.body)
+      errorDetail = responseBody.detail || responseBody.message || responseBody.error || 'Unknown error'
+    } catch (e) {
+      errorDetail = request.response.body.substring(0, 200)
     }
+
+    // Crear issue específico por tipo de error
+    let issueTitle = ''
+    let severity = 'CRITICAL'
+
+    if (status >= 500) {
+      issueTitle = `[QA] API Error ${status} en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`
+      severity = 'CRITICAL'
+    } else if (status === 422) {
+      issueTitle = `[QA] Validation error en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`
+      severity = 'HIGH'
+    } else if (status === 401 || status === 403) {
+      issueTitle = `[QA] Auth error en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`
+      severity = 'HIGH'
+    } else if (status === 404) {
+      issueTitle = `[QA] Not found error en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`
+      severity = 'MEDIUM'
+    } else {
+      issueTitle = `[QA] HTTP ${status} error en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`
+      severity = 'HIGH'
+    }
+
+    // Crear issue automáticamente
+    await createQAIssue({
+      title: issueTitle,
+      originalIssue: issueNumber,
+      errorType: 'API_ERROR',
+      severity: severity,
+      details: {
+        method: request.method,
+        url: request.url,
+        status: status,
+        requestBody: request.postData,
+        responseBody: request.response.body,
+        errorDetail: errorDetail
+      }
+    })
+
+    continue
   }
 
-  // Validar que response es JSON válido
+  // 2. Verificar response body es JSON válido
   try {
-    const responseData = JSON.parse(response.body)
+    const responseData = JSON.parse(request.response.body)
+    console.log(`  ✅ Response is valid JSON`)
 
-    // Verificar que no es un error
-    if (responseData.error || responseData.message?.includes('error')) {
-      console.log(`❌ FAIL: Response contains error: ${responseData.message}`)
-      return { passed: false, reason: `API returned error: ${responseData.message}` }
+    // 3. Verificar que no hay errores en response body
+    if (responseData.error || responseData.message?.toLowerCase().includes('error')) {
+      console.log(`  ❌ FAIL: Response contains error: ${responseData.message || responseData.error}`)
+
+      await createQAIssue({
+        title: `[QA] API response error en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`,
+        originalIssue: issueNumber,
+        errorType: 'API_RESPONSE_ERROR',
+        severity: 'HIGH',
+        details: {
+          method: request.method,
+          url: request.url,
+          status: status,
+          responseError: responseData.message || responseData.error
+        }
+      })
+
+      continue
     }
 
-    // Verificar que el usuario fue creado (tiene ID)
-    if (!responseData.id && !responseData.usuario_id) {
-      console.log('❌ FAIL: Response missing user ID')
-      return { passed: false, reason: 'Created user missing ID in response' }
+    // 4. Verificar tiempo de respuesta
+    const responseTime = request.response.timing?.duration || 0
+    console.log(`  Response time: ${responseTime}ms`)
+
+    if (responseTime > 5000) {
+      console.log(`  ⚠️ WARNING: Slow response (>${responseTime}ms)`)
+
+      await createQAIssue({
+        title: `[QA] Performance issue en #${issueNumber}: Slow API response`,
+        originalIssue: issueNumber,
+        errorType: 'PERFORMANCE',
+        severity: 'MEDIUM',
+        details: {
+          method: request.method,
+          url: request.url,
+          responseTime: responseTime,
+          threshold: 5000
+        }
+      })
+    } else if (responseTime > 3000) {
+      console.log(`  ⚠️ Response is slow but acceptable (${responseTime}ms)`)
     }
 
-    console.log('✅ PASS: POST request successful')
-    return {
-      passed: true,
-      user_id: responseData.id || responseData.usuario_id,
-      response_time: response.timing.duration
-    }
+    console.log(`  ✅ PASS: ${request.method} ${request.url}`)
 
   } catch (e) {
-    console.log(`❌ FAIL: Response is not valid JSON: ${e.message}`)
-    return { passed: false, reason: 'Response body is not valid JSON' }
+    console.log(`  ❌ FAIL: Response is not valid JSON`)
+
+    await createQAIssue({
+      title: `[QA] Invalid API response en #${issueNumber}: ${request.method} ${request.url.split('?')[0]}`,
+      originalIssue: issueNumber,
+      errorType: 'INVALID_RESPONSE',
+      severity: 'CRITICAL',
+      details: {
+        method: request.method,
+        url: request.url,
+        responseBody: request.response.body.substring(0, 500),
+        parseError: e.message
+      }
+    })
   }
 }
-```
 
-**Validaciones Específicas por Tipo de Request:**
+// Verificar errores especiales
+// 1. Backend no está corriendo (ECONNREFUSED)
+const backendDownRequests = networkRequests.filter(r =>
+  r.error?.includes('ECONNREFUSED') ||
+  r.error?.includes('ERR_CONNECTION_REFUSED') ||
+  r.response.status === 0
+)
 
-**POST /api/v1/usuarios (Crear Usuario):**
-```javascript
-// Request debe tener:
-{
-  "nombre": "string",
-  "email": "valid@email.com",
-  "rol": "ADMIN|USUARIO|VIEWER"
-}
-
-// Response debe ser 201 Created:
-{
-  "id": 123,
-  "nombre": "string",
-  "email": "valid@email.com",
-  "rol": "ADMIN",
-  "created_at": "2025-12-22T..."
-}
-
-// ❌ FAIL si:
-- Status: 400 (validación falla)
-- Status: 409 (email duplicado)
-- Status: 500 (error servidor)
-- Response: {"detail": "Email already exists"}
-```
-
-**POST /api/v1/centros-coste (Crear Centro de Costo):**
-```javascript
-// Request debe tener:
-{
-  "codigo": "CC001",
-  "nombre": "Centro Principal",
-  "descripcion": "..."
-}
-
-// Response debe ser 201 Created:
-{
-  "id": 456,
-  "codigo": "CC001",
-  "nombre": "Centro Principal",
-  "created_at": "2025-12-22T..."
-}
-
-// ❌ FAIL si:
-- Status: 400 (código inválido)
-- Status: 409 (código duplicado)
-- Response: {"detail": "Centro de costo already exists"}
-```
-
-**PUT /api/v1/usuarios/{id} (Actualizar Usuario):**
-```javascript
-// Request debe tener:
-{
-  "nombre": "new name",
-  "email": "new@email.com"
-}
-
-// Response debe ser 200 OK:
-{
-  "id": 123,
-  "nombre": "new name",
-  "email": "new@email.com",
-  "updated_at": "2025-12-22T..."
-}
-
-// ❌ FAIL si:
-- Status: 404 (usuario no existe)
-- Status: 400 (datos inválidos)
-```
-
-**DELETE /api/v1/usuarios/{id} (Eliminar Usuario):**
-```javascript
-// Response debe ser 204 No Content (sin body)
-// O 200 OK con confirmación
-
-// ❌ FAIL si:
-- Status: 404 (usuario no existe)
-- Status: 409 (usuario tiene dependencias)
-```
-
-**Verificación de Errores Comunes:**
-
-```javascript
-// 1. Backend no está corriendo
-if (networkRequests.some(req => req.response.status === 0 || req.error?.includes('ECONNREFUSED'))) {
-  console.log('❌ CRITICAL: Backend is not running!')
-  return { passed: false, reason: 'Backend server is not accessible' }
+if (backendDownRequests.length > 0) {
+  await createQAIssue({
+    title: `[QA] Backend not running en #${issueNumber}`,
+    originalIssue: issueNumber,
+    errorType: 'BACKEND_DOWN',
+    severity: 'CRITICAL',
+    details: {
+      affectedRequests: backendDownRequests.length,
+      firstFailedUrl: backendDownRequests[0].url
+    }
+  })
 }
 
 // 2. CORS errors
-if (networkRequests.some(req => req.error?.includes('CORS'))) {
-  console.log('❌ FAIL: CORS error detected')
-  return { passed: false, reason: 'CORS policy blocking requests' }
-}
-
-// 3. Authentication errors
-if (networkRequests.some(req => req.response.status === 401)) {
-  console.log('⚠️  WARNING: Authentication required')
-  return { passed: false, reason: '401 Unauthorized - check auth tokens' }
-}
-
-// 4. Validation errors
-const validationErrors = networkRequests.filter(req =>
-  req.response.status === 422 || req.response.body?.includes('validation')
+const corsErrors = networkRequests.filter(r =>
+  r.error?.includes('CORS') ||
+  r.error?.includes('Access-Control-Allow-Origin')
 )
-if (validationErrors.length > 0) {
-  console.log('❌ FAIL: Validation errors in requests')
-  return {
-    passed: false,
-    reason: 'Request validation errors',
-    details: validationErrors.map(e => e.response.body)
-  }
-}
 
-// 5. Slow responses (performance issue)
-const slowRequests = networkRequests.filter(req =>
-  req.response.timing?.duration > 5000
-)
-if (slowRequests.length > 0) {
-  console.log(`⚠️  WARNING: ${slowRequests.length} slow requests (>5s)`)
-  // No falla QA pero se registra en reporte
-}
-```
-
-**Reporte de Network Requests:**
-
-```markdown
-### Network Analysis 🌐
-
-**Total Requests:** 25
-- GET: 15
-- POST: 5
-- PUT: 3
-- DELETE: 2
-
-**POST Requests Analysis:**
-
-#### ✅ /api/v1/usuarios (Create User)
-- Status: 201 Created
-- Response Time: 245ms
-- Request Body: ✅ Valid
-- Response Body: ✅ Valid JSON
-- User ID: 123
-
-#### ✅ /api/v1/centros-coste (Create Centro)
-- Status: 201 Created
-- Response Time: 189ms
-- Request Body: ✅ Valid
-- Response Body: ✅ Valid JSON
-- Centro ID: 456
-
-#### ❌ /api/v1/productos (Create Product)
-- Status: 500 Internal Server Error
-- Response Time: 1234ms
-- Error: "Database connection timeout"
-- **ACTION REQUIRED:** Fix database connection
-
-**Performance Summary:**
-- Average Response Time: 312ms ✅
-- Slowest Request: 1234ms (productos) ⚠️
-- Failed Requests: 1 ❌
-```
-
-**Criterios Finales con Network Analysis:**
-- ✅ PASS: Todos los POST/PUT/DELETE tienen status 2xx, responses válidas, sin errores
-- ⚠️ WARNING: Requests lentos (>3s) pero exitosos → Aprobar con nota
-- ❌ FAIL: Cualquier request con status 4xx/5xx → Mantener en Done
-
-### PASO 3: Decisión y Acción
-
-#### ✅ SI TODAS LAS VERIFICACIONES PASAN:
-
-```json
-{
-  "issue": 210,
-  "status": "PASSED",
-  "checks": {
-    "files_exist": true,
-    "typescript_compilation": "passed",
-    "browser_errors": 0,
-    "network_requests": {
-      "total": 25,
-      "post_requests": 5,
-      "failed": 0,
-      "slow": 0,
-      "avg_response_time": 312
-    },
-    "screenshots_taken": 2
-  },
-  "action": "MOVE_TO_REVIEWED"
-}
-```
-
-**Ejecutar:**
-```bash
-# Mover a columna Reviewed
-gh api graphql -f query='
-mutation {
-  updateProjectV2ItemFieldValue(
-    input: {
-      projectId: "PROJECT_ID"
-      itemId: "ITEM_ID"
-      fieldId: "STATUS_FIELD_ID"
-      value: { singleSelectOptionId: "REVIEWED_OPTION_ID" }
+if (corsErrors.length > 0) {
+  await createQAIssue({
+    title: `[QA] CORS error en #${issueNumber}`,
+    originalIssue: issueNumber,
+    errorType: 'CORS_ERROR',
+    severity: 'CRITICAL',
+    details: {
+      affectedRequests: corsErrors.length,
+      urls: corsErrors.map(r => r.url)
     }
-  ) {
-    projectV2Item { id }
-  }
-}'
-```
-
-#### ❌ SI ALGUNA VERIFICACIÓN FALLA:
-
-```json
-{
-  "issue": 210,
-  "status": "FAILED",
-  "checks": {
-    "files_exist": true,
-    "typescript_compilation": "failed",
-    "errors": [
-      "Property 'nombre' does not exist on type 'Usuario'"
-    ]
-  },
-  "action": "KEEP_IN_DONE",
-  "reason": "TypeScript compilation errors"
+  })
 }
 ```
 
-**Acción:** Mantener en Done y registrar en reporte
+### F. Verificación Browser - Interacciones de Usuario
 
-### PASO 4: Generar Reporte Completo
+```javascript
+// Identificar acciones del issue
+// Ejemplo: Issue dice "crear usuario" → simular flujo completo
 
-```markdown
-# QA Review Report - Project #7
-**Fecha:** 2025-12-20 15:30:00
-**Proyecto:** Revisión de Calidad - Frontend
+const actions = extractActionsFromIssue(issueBody)
+// Ejemplo: ["click Nuevo Usuario", "fill form", "submit", "verify success"]
 
-## Resumen Ejecutivo
-- ✅ Issues Verificados: 12/15
-- ✅ Movidos a Reviewed: 12
-- ❌ Mantenidos en Done: 3
-- ⏱️  Tiempo Total: 8 minutos
+for (const action of actions) {
+  console.log(`Performing action: ${action}`)
 
-## Issues Verificados ✅
+  try {
+    if (action.type === 'click') {
+      // Screenshot ANTES del click
+      await mcp__playwright__browser_take_screenshot({
+        path: `.claude/qa-screenshots/issue-${issueNumber}-before-${action.name}.png`
+      })
 
-### #210 - refactor(entities): crear estructura usuario entity
-- ✅ Archivos verificados: 3/3
-- ✅ TypeScript: Sin errores
-- ✅ Browser: 0 errores consola
-- ✅ Network: 5 POST requests, 0 errores, avg 245ms
-  - POST /api/v1/usuarios: 201 Created ✅
-  - GET /api/v1/usuarios: 200 OK ✅
-- ✅ Screenshots: 2
-- 🟢 **MOVED TO REVIEWED**
+      // Ejecutar click
+      await mcp__playwright__browser_click({
+        selector: action.selector
+      })
 
-### #211 - refactor(entities): crear estructura centros-coste entity
-- ✅ Archivos verificados: 5/5
-- ✅ TypeScript: Sin errores
-- ✅ Browser: 0 errores consola
-- ✅ Screenshots: 4
-- 🟢 **MOVED TO REVIEWED**
+      // Esperar navegación/modal
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
-... (continúa para todos los issues aprobados)
+      // Screenshot DESPUÉS del click
+      await mcp__playwright__browser_take_screenshot({
+        path: `.claude/qa-screenshots/issue-${issueNumber}-after-${action.name}.png`
+      })
 
-## Issues con Problemas ❌
+      // Capturar errores de consola después del click
+      const consoleAfterClick = await mcp__playwright__browser_console_messages()
+      const errorsAfterClick = consoleAfterClick.filter(m => m.type === 'error')
 
-### #216 - fix(types): corregir tipos en Usuario
-- ❌ TypeScript: 2 errores
-  - Property 'nombre' does not exist on type 'Usuario' (line 42)
-  - Type 'string' is not assignable to type 'RolUsuario' (line 67)
-- 🔴 **KEPT IN DONE**
-- 📋 Acción requerida: Corregir errores de tipos
+      if (errorsAfterClick.length > 0) {
+        console.log(`❌ Errors after clicking ${action.name}:`, errorsAfterClick)
 
-### #217 - feat(ui): añadir modal de confirmación
-- ❌ Browser: 1 error de consola
-  - "Uncaught TypeError: Cannot read property 'id' of undefined"
-  - Source: ConfirmModal.tsx:89
-- 🔴 **KEPT IN DONE**
-- 📋 Acción requerida: Corregir error en ConfirmModal
+        await createQAIssue({
+          title: `[QA] Error after ${action.name} en #${issueNumber}`,
+          originalIssue: issueNumber,
+          errorType: 'INTERACTION_ERROR',
+          severity: 'HIGH',
+          details: {
+            action: action.name,
+            errors: errorsAfterClick.map(e => e.text),
+            screenshotBefore: `.claude/qa-screenshots/issue-${issueNumber}-before-${action.name}.png`,
+            screenshotAfter: `.claude/qa-screenshots/issue-${issueNumber}-after-${action.name}.png`
+          }
+        })
+      }
+    }
 
-... (continúa para issues con problemas)
+    if (action.type === 'fill_form') {
+      // Llenar formulario con datos de prueba
+      await mcp__playwright__browser_evaluate({
+        expression: `
+          document.querySelector('${action.nameSelector}').value = '${action.testData.nombre}';
+          document.querySelector('${action.emailSelector}').value = '${action.testData.email}';
+          document.querySelector('${action.rolSelector}').value = '${action.testData.rol}';
+        `
+      })
 
-## Estadísticas Detalladas
+      // Screenshot del formulario llenado
+      await mcp__playwright__browser_take_screenshot({
+        path: `.claude/qa-screenshots/issue-${issueNumber}-form-filled.png`
+      })
+    }
 
-| Categoría | Total | Pasaron | Fallaron |
-|-----------|-------|---------|----------|
-| Verificación de archivos | 15 | 15 | 0 |
-| Compilación TypeScript | 15 | 13 | 2 |
-| Errores de consola | 15 | 13 | 2 |
-| Network requests (POST/PUT/DELETE) | 75 | 70 | 5 |
-| API errors (4xx/5xx) | 15 | 13 | 2 |
-| Slow requests (>3s) | 15 | 14 | 1 |
-| Screenshots capturados | - | 45 | - |
+    if (action.type === 'submit') {
+      // Screenshot ANTES del submit
+      await mcp__playwright__browser_take_screenshot({
+        path: `.claude/qa-screenshots/issue-${issueNumber}-before-submit.png`
+      })
 
-## Próximos Pasos
+      // Capturar network requests ANTES del submit
+      const networkBefore = await mcp__playwright__browser_network_requests()
 
-1. Revisar y corregir issue #216 (errores TypeScript)
-2. Revisar y corregir issue #217 (error browser)
-3. Revisar y corregir issue #218 (error linting)
-4. Re-ejecutar QA review cuando estén corregidos
+      // Submit formulario
+      await mcp__playwright__browser_click({
+        selector: action.submitSelector
+      })
+
+      // Esperar respuesta
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Capturar network requests DESPUÉS del submit
+      const networkAfter = await mcp__playwright__browser_network_requests()
+
+      // Encontrar el POST request generado
+      const newRequests = networkAfter.filter(r =>
+        !networkBefore.some(b => b.url === r.url && b.timestamp === r.timestamp)
+      )
+
+      const postRequest = newRequests.find(r => r.method === 'POST')
+
+      if (postRequest && postRequest.response.status >= 400) {
+        console.log(`❌ Submit failed: ${postRequest.response.status}`)
+
+        // Ya se habrá creado issue en la verificación de network
+        // Aquí solo capturamos evidencia adicional
+      }
+
+      // Screenshot DESPUÉS del submit
+      await mcp__playwright__browser_take_screenshot({
+        path: `.claude/qa-screenshots/issue-${issueNumber}-after-submit.png`
+      })
+
+      // Verificar mensaje de éxito (toast, alert, redirección)
+      const pageContent = await mcp__playwright__browser_snapshot()
+
+      if (!pageContent.includes('éxito') &&
+          !pageContent.includes('success') &&
+          !pageContent.includes('creado') &&
+          !pageContent.includes('created')) {
+        console.log(`⚠️ No success message found after submit`)
+
+        await createQAIssue({
+          title: `[QA] No success feedback after submit en #${issueNumber}`,
+          originalIssue: issueNumber,
+          errorType: 'UX_ISSUE',
+          severity: 'MEDIUM',
+          details: {
+            action: 'submit',
+            issue: 'No success message displayed to user',
+            screenshot: `.claude/qa-screenshots/issue-${issueNumber}-after-submit.png`
+          }
+        })
+      }
+    }
+
+  } catch (error) {
+    console.log(`❌ Action failed: ${action.name}`, error)
+
+    await createQAIssue({
+      title: `[QA] Failed to perform ${action.name} en #${issueNumber}`,
+      originalIssue: issueNumber,
+      errorType: 'INTERACTION_ERROR',
+      severity: 'CRITICAL',
+      details: {
+        action: action.name,
+        error: error.message,
+        stackTrace: error.stack
+      }
+    })
+  }
+}
+```
+
+### G. Verificación de Performance y Estado
+
+```javascript
+// 1. Verificar tiempo de carga de página
+const performanceMetrics = await mcp__playwright__browser_evaluate({
+  expression: `
+    JSON.stringify({
+      loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart,
+      domReady: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart,
+      resourcesLoaded: performance.getEntriesByType('resource').length,
+      memoryUsed: performance.memory?.usedJSHeapSize,
+      memoryLimit: performance.memory?.jsHeapSizeLimit
+    })
+  `
+})
+
+const metrics = JSON.parse(performanceMetrics)
+console.log('Performance metrics:', metrics)
+
+if (metrics.loadTime > 3000) {
+  console.log(`⚠️ Page load time is slow: ${metrics.loadTime}ms`)
+
+  await createQAIssue({
+    title: `[QA] Slow page load en #${issueNumber}: ${metrics.loadTime}ms`,
+    originalIssue: issueNumber,
+    errorType: 'PERFORMANCE',
+    severity: 'MEDIUM',
+    details: {
+      loadTime: metrics.loadTime,
+      domReady: metrics.domReady,
+      threshold: 3000,
+      recommendation: 'Optimize bundle size, lazy load components, use code splitting'
+    }
+  })
+}
+
+// 2. Verificar estado de React Query (TanStack Query)
+const queryState = await mcp__playwright__browser_evaluate({
+  expression: `
+    (() => {
+      const queryClient = window.__REACT_QUERY_DEVTOOLS_CONTEXT__?.queryClient;
+      if (!queryClient) return { error: 'QueryClient not found' };
+
+      const cache = queryClient.getQueryCache();
+      const queries = cache.getAll();
+
+      return {
+        totalQueries: queries.length,
+        fetchingQueries: queries.filter(q => q.state.isFetching).length,
+        errorQueries: queries.filter(q => q.state.isError).length,
+        staleQueries: queries.filter(q => q.state.isStale).length,
+        errors: queries.filter(q => q.state.isError).map(q => ({
+          queryKey: q.queryKey,
+          error: q.state.error?.message
+        }))
+      };
+    })()
+  `
+})
+
+const queryInfo = JSON.parse(queryState)
+
+if (queryInfo.errorQueries > 0) {
+  console.log(`❌ Found ${queryInfo.errorQueries} queries with errors`)
+
+  for (const errorQuery of queryInfo.errors) {
+    await createQAIssue({
+      title: `[QA] Query error en #${issueNumber}: ${errorQuery.queryKey}`,
+      originalIssue: issueNumber,
+      errorType: 'QUERY_ERROR',
+      severity: 'HIGH',
+      details: {
+        queryKey: errorQuery.queryKey,
+        error: errorQuery.error
+      }
+    })
+  }
+}
+
+// 3. Verificar localStorage/sessionStorage
+const storageState = await mcp__playwright__browser_evaluate({
+  expression: `
+    JSON.stringify({
+      localStorage: Object.keys(localStorage).reduce((acc, key) => {
+        acc[key] = localStorage.getItem(key);
+        return acc;
+      }, {}),
+      sessionStorage: Object.keys(sessionStorage).reduce((acc, key) => {
+        acc[key] = sessionStorage.getItem(key);
+        return acc;
+      }, {})
+    })
+  `
+})
+
+const storage = JSON.parse(storageState)
+
+// Verificar que auth token existe si es requerido
+if (issueRequiresAuth && !storage.localStorage.auth_token) {
+  await createQAIssue({
+    title: `[QA] Missing auth token en #${issueNumber}`,
+    originalIssue: issueNumber,
+    errorType: 'AUTH_ISSUE',
+    severity: 'HIGH',
+    details: {
+      issue: 'Auth token not found in localStorage',
+      localStorage: Object.keys(storage.localStorage)
+    }
+  })
+}
+```
+
+## PASO 3: Crear Issue Automáticamente por Error
+
+Función helper para crear issues automáticamente:
+
+```javascript
+async function createQAIssue({ title, originalIssue, errorType, severity, details }) {
+  // Construir body del issue con toda la información
+  const body = `## Issue Original Bloqueado
+#${originalIssue} - ${originalIssueTitle}
+
+Este issue no puede moverse a Reviewed por el siguiente error.
+
+## Error Detectado
+**Tipo:** ${errorType}
+**Severidad:** ${severity}
+
+${formatErrorDetails(details)}
+
+${details.screenshot ? `## Screenshot\n![Error Screenshot](${details.screenshot})` : ''}
+
+${details.requestBody ? `## Request\n\`\`\`json\n${JSON.stringify(JSON.parse(details.requestBody), null, 2)}\n\`\`\`` : ''}
+
+${details.responseBody ? `## Response\n\`\`\`json\n${details.responseBody.substring(0, 1000)}\n\`\`\`` : ''}
+
+${details.stackTrace ? `## Stack Trace\n\`\`\`\n${details.stackTrace}\n\`\`\`` : ''}
+
+## Impacto
+- Severidad: ${severity}
+- Bloquea: #${originalIssue}
+${severity === 'CRITICAL' ? '- Rompe funcionalidad core' : ''}
+${errorType === 'API_ERROR' ? '- Backend no funciona correctamente' : ''}
+
+## Acción Requerida
+${getActionRequired(errorType, details)}
 
 ---
-**Generado automáticamente por QA Review Agent**
+🤖 Auto-created by QA Review
+`
+
+  // Ejecutar /github:issue command
+  console.log(`Creating QA issue: ${title}`)
+
+  const labels = [
+    'bug',
+    'qa-failed',
+    'auto-created',
+    `severity:${severity.toLowerCase()}`,
+    errorType.toLowerCase().replace(/_/g, '-')
+  ]
+
+  // Usar el command /github:issue
+  await executeCommand('/github:issue', {
+    title: title,
+    body: body,
+    labels: labels.join(','),
+    assignees: originalIssueAssignees,
+    // Opcional: agregar a mismo proyecto
+    project: projectNumber
+  })
+
+  // Guardar referencia del issue creado
+  createdIssues.push({
+    originalIssue: originalIssue,
+    newIssue: title,
+    errorType: errorType,
+    severity: severity
+  })
+}
+
+function formatErrorDetails(details) {
+  let formatted = ''
+
+  if (details.method && details.url) {
+    formatted += `**Request:** ${details.method} ${details.url}\n`
+  }
+
+  if (details.status) {
+    formatted += `**Status Code:** ${details.status}\n`
+  }
+
+  if (details.errorDetail) {
+    formatted += `**Error:** ${details.errorDetail}\n`
+  }
+
+  if (details.responseTime) {
+    formatted += `**Response Time:** ${details.responseTime}ms (threshold: ${details.threshold}ms)\n`
+  }
+
+  if (details.errors && details.errors.length > 0) {
+    formatted += `**Errors:**\n`
+    details.errors.forEach(err => {
+      formatted += `- ${err}\n`
+    })
+  }
+
+  if (details.action) {
+    formatted += `**Action:** ${details.action}\n`
+  }
+
+  return formatted
+}
+
+function getActionRequired(errorType, details) {
+  switch (errorType) {
+    case 'API_ERROR':
+      return `Verificar el backend y corregir el error ${details.status}. Revisar logs del servidor para más detalles.`
+    case 'TYPESCRIPT_ERROR':
+      return `Corregir los errores de tipos en TypeScript antes de mover a Reviewed.`
+    case 'CONSOLE_ERROR':
+      return `Corregir el error JavaScript en ${details.sourceFile || 'el archivo indicado'}.`
+    case 'CORS_ERROR':
+      return `Configurar CORS correctamente en el backend para permitir requests desde frontend.`
+    case 'BACKEND_DOWN':
+      return `Iniciar el servidor backend o verificar conectividad.`
+    case 'PERFORMANCE':
+      return `Optimizar el código para mejorar tiempos de respuesta. Objetivo: <3s para requests.`
+    case 'INTERACTION_ERROR':
+      return `Verificar el flujo de usuario y corregir el error en la acción: ${details.action}`
+    case 'AUTH_ISSUE':
+      return `Verificar que el token de autenticación se guarda correctamente en localStorage.`
+    default:
+      return `Revisar y corregir el error antes de mover a Reviewed.`
+  }
+}
 ```
 
-### PASO 5: Enviar Email con Resumen
+## PASO 4: Comentar en Issue Original
+
+Cuando se detectan errores en un issue, agregar comentario con enlaces a issues creados:
 
 ```bash
-# Preparar contenido del email
-EMAIL_SUBJECT="QA Review Completado - Proyecto #7"
-EMAIL_TO="{{userEmail}}"
+# Contar issues creados para este issue original
+created_count=$(echo "$createdIssues" | jq "[.[] | select(.originalIssue == $issue_number)] | length")
 
-# Generar HTML del email
-cat > /tmp/qa_email.html <<EOF
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; }
-    .header { background: #4CAF50; color: white; padding: 20px; }
-    .summary { background: #f4f4f4; padding: 15px; margin: 20px 0; border-radius: 5px; }
-    .success { color: #4CAF50; }
-    .error { color: #f44336; }
-    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-    th { background-color: #4CAF50; color: white; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>✅ QA Review Completado</h1>
-    <p>Proyecto #7 - Revisión de Calidad Frontend</p>
-  </div>
+if [ $created_count -gt 0 ]; then
+  # Construir lista de issues creados
+  issues_list=$(echo "$createdIssues" | jq -r "[.[] | select(.originalIssue == $issue_number)] | .[] | \"- 🔴 [\(.errorType)] \(.newIssue) - Severity: \(.severity)\"")
 
-  <div class="summary">
-    <h2>Resumen Ejecutivo</h2>
-    <p><span class="success">✅ Issues Verificados: 12/15</span></p>
-    <p><span class="success">✅ Movidos a Reviewed: 12</span></p>
-    <p><span class="error">❌ Mantenidos en Done: 3</span></p>
-    <p>⏱️ Tiempo Total: 8 minutos</p>
-  </div>
+  # Agregar comentario al issue original
+  gh issue comment $issue_number --body "$(cat <<EOF
+## ⚠️ QA Review Failed
 
-  <h2>Issues Aprobados ✅</h2>
-  <ul>
-    <li>#210 - refactor(entities): crear estructura usuario entity</li>
-    <li>#211 - refactor(entities): crear estructura centros-coste entity</li>
-    <li>... (lista completa)</li>
-  </ul>
+Este issue no puede moverse a Reviewed por los siguientes errores detectados.
 
-  <h2>Issues con Problemas ❌</h2>
-  <table>
-    <tr>
-      <th>Issue</th>
-      <th>Título</th>
-      <th>Error</th>
-      <th>Acción Requerida</th>
-    </tr>
-    <tr>
-      <td>#216</td>
-      <td>fix(types): corregir tipos</td>
-      <td>2 errores TypeScript</td>
-      <td>Corregir tipos en Usuario</td>
-    </tr>
-    <tr>
-      <td>#217</td>
-      <td>feat(ui): añadir modal</td>
-      <td>Error consola browser</td>
-      <td>Corregir ConfirmModal.tsx:89</td>
-    </tr>
-  </table>
+### Errores Detectados ($created_count)
+$issues_list
 
-  <h2>Próximos Pasos</h2>
-  <ol>
-    <li>Corregir issue #216 (TypeScript errors)</li>
-    <li>Corregir issue #217 (Browser error)</li>
-    <li>Corregir issue #218 (Linting)</li>
-    <li>Re-ejecutar /qa:review-done 7</li>
-  </ol>
+### Próximos Pasos
+1. Resolver todos los issues creados arriba
+2. Volver a ejecutar \`/qa:review-done --project=$projectNumber\`
+3. Si todos los issues están resueltos, este issue se moverá automáticamente a Reviewed
 
-  <hr>
-  <p style="color: #666; font-size: 12px;">
-    Generado automáticamente por QA Review Agent<br>
-    Fecha: $(date +"%Y-%m-%d %H:%M:%S")
-  </p>
-</body>
-</html>
+---
+🤖 Auto-generated by QA Review - $(date +"%Y-%m-%d %H:%M:%S")
 EOF
+)"
 
-# Enviar email usando curl con servicio SMTP
-# Opción 1: Si tienes configurado sendmail/mailx
-echo "$(cat /tmp/qa_email.html)" | mail -s "$EMAIL_SUBJECT" -a "Content-Type: text/html" $EMAIL_TO
+  echo "✅ Comment added to issue #$issue_number with $created_count linked issues"
+fi
+```
 
-# Opción 2: Si usas API de email (ej: SendGrid, Mailgun)
-# curl -X POST https://api.sendgrid.com/v3/mail/send \
-#   -H "Authorization: Bearer $SENDGRID_API_KEY" \
-#   -H "Content-Type: application/json" \
-#   -d '{
-#     "personalizations": [{"to": [{"email": "{{userEmail}}"}]}],
-#     "from": {"email": "qa-bot@gextiona.com"},
-#     "subject": "QA Review Completado - Proyecto #7",
-#     "content": [{"type": "text/html", "value": "'"$(cat /tmp/qa_email.html)"'"}]
-#   }'
+## PASO 5: Decisión Final
 
-# Opción 3: Usar servicio local SMTP
-# echo "$(cat /tmp/qa_email.html)" | \
-#   curl --url 'smtp://smtp.gmail.com:587' \
-#     --ssl-reqd \
-#     --mail-from 'qa-bot@gextiona.com' \
-#     --mail-rcpt '{{userEmail}}' \
-#     --user 'qa-bot@gextiona.com:password' \
-#     --upload-file -
+```javascript
+// Para cada issue verificado, decidir acción
+if (errorsDetected.length === 0) {
+  // ✅ TODAS LAS VERIFICACIONES PASARON
+  console.log(`✅ Issue #${issueNumber}: All checks passed`)
 
-echo "✅ Email enviado a {{userEmail}}"
+  // Mover a columna "Reviewed"
+  await moveIssueToReviewed(issueNumber, projectId, itemId)
+
+  approvedIssues.push(issueNumber)
+
+} else {
+  // ❌ HAY ERRORES DETECTADOS
+  console.log(`❌ Issue #${issueNumber}: ${errorsDetected.length} errors found`)
+
+  // Issues ya fueron creados en las verificaciones anteriores
+  // Aquí solo registramos y dejamos en "Done"
+
+  failedIssues.push({
+    number: issueNumber,
+    title: issueTitle,
+    errorsCount: errorsDetected.length,
+    createdIssues: createdIssues.filter(ci => ci.originalIssue === issueNumber)
+  })
+}
+```
+
+## PASO 6: Resumen Final Simplificado
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ QA REVIEW COMPLETE - Project #7
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Approved → Reviewed:     12 issues
+❌ Failed → Stay in Done:    3 issues
+🐛 Issues Created:           8 issues
+
+Failed Issues:
+  #210 → 3 errors → 3 issues created
+    - [API_ERROR] API Error 500 POST /api/v1/usuarios
+    - [CONSOLE_ERROR] Console error: Cannot read property 'map'
+    - [PERFORMANCE] Slow page load: 5230ms
+
+  #211 → 2 errors → 2 issues created (1 grouped)
+    - [API_ERROR] API Error 500 POST /api/v1/centros-coste (grouped with #210)
+    - [TYPESCRIPT_ERROR] TypeScript compilation error
+
+  #216 → 3 errors → 3 issues created
+    - [CORS_ERROR] CORS error blocking requests
+    - [CONSOLE_ERROR] Uncaught TypeError in UserForm.tsx
+    - [INTERACTION_ERROR] Error after clicking "Submit"
+
+⏱️  Time: 12 min 45 sec
+
+Next Steps:
+  1. Resolve the 8 issues created (see project board)
+  2. Re-run: /qa:review-done --project=7
+  3. Issues will auto-move to Reviewed when all checks pass
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+## Agrupación Inteligente de Errores
+
+Si múltiples issues tienen el MISMO error (ej: mismo API endpoint 500), agrupar:
+
+```bash
+# Detectar errores duplicados
+duplicates=$(echo "$createdIssues" | jq 'group_by(.errorType + .details.url) | map(select(length > 1))')
+
+for group in $duplicates; do
+  # Obtener issues afectados
+  affected=$(echo "$group" | jq -r '.[].originalIssue' | tr '\n' ',' | sed 's/,$//')
+  error_detail=$(echo "$group" | jq -r '.[0].details.errorDetail')
+
+  # Crear issue agrupado
+  /github:issue \
+    --title "[QA] ${error_detail} - Affects ${affected_count} issues" \
+    --body "## Issues Afectados
+$(echo "$group" | jq -r '.[] | "- #\(.originalIssue) - \(.originalIssueTitle)"')
+
+## Error Común
+${error_detail}
+
+## Impacto
+- Severidad: CRITICAL
+- Bloquea ${affected_count} issues en Done
+
+## Acción Requerida
+Resolver este error desbloqueará todos los issues afectados." \
+    --label "bug,qa-failed,grouped,priority:critical"
+done
 ```
 
 ## Casos Especiales
@@ -665,274 +1066,41 @@ echo "✅ Email enviado a {{userEmail}}"
 ### 1. Proyecto sin Issues en Done
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ℹ️  NO ISSUES TO REVIEW
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Proyecto #7: Revisión de Calidad - Frontend
-Issues en columna "Done": 0
-
-✅ Todos los issues ya han sido revisados
-No hay trabajo pendiente de QA
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Proyecto #7: No hay issues en columna "Done"
+✅ Nada que revisar
 ```
 
-**Acción:** No enviar email
-
-### 2. Todos los Issues Aprobados
+### 2. Todos Aprobados
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ ALL ISSUES APPROVED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Proyecto #7
-✅ Verificados: 15/15
-✅ Movidos a Reviewed: 15
-❌ Con problemas: 0
-
-🎉 ¡Excelente trabajo! Todos los issues pasaron QA
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15/15 issues pasaron QA
+🎉 Todos movidos a Reviewed
 ```
 
-**Acción:** Enviar email con celebración
+### 3. Backend no está corriendo
 
-### 3. Todos los Issues Fallaron
+Si el backend no responde, crear UN solo issue agrupado:
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❌ ALL ISSUES FAILED QA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Proyecto #7
-✅ Verificados: 15/15
-✅ Movidos a Reviewed: 0
-❌ Con problemas: 15
-
-⚠️  Se requiere revisión urgente
-Ningún issue pasó las verificaciones de QA
-
-Problemas encontrados:
-- 8 issues con errores TypeScript
-- 5 issues con errores de consola
-- 2 issues con archivos faltantes
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[QA] Backend not running - Affects ALL frontend issues
 ```
-
-**Acción:** Enviar email URGENTE marcado como prioridad alta
-
-### 4. Issue Backend (sin verificación browser)
-
-Si un issue es puramente backend:
-```
-Issue #XX - Backend Change
-- ✅ Archivos verificados
-- ✅ Migraciones aplicadas
-- ⊘  Browser: N/A (backend only)
-- 🟢 MOVED TO REVIEWED
-```
-
-### 5. Error al Mover Issue
-
-```bash
-# Si falla la mutación GraphQL
-{
-  "errors": [
-    {
-      "message": "Field value not found",
-      "path": ["updateProjectV2ItemFieldValue"]
-    }
-  ]
-}
-```
-
-**Acción:**
-- ❌ No marcar como Reviewed
-- 📝 Registrar en reporte
-- ⚠️  Incluir en email con advertencia
 
 ## Optimizaciones
 
-### Ejecución en Paralelo
-
-Para proyectos grandes (>10 issues), verificar múltiples issues en paralelo:
-
-```bash
-# Dividir issues en lotes de 3
-issues=(210 211 212 213 214 ...)
-
-for i in $(seq 0 3 ${#issues[@]}); do
-  # Procesar 3 issues simultáneamente
-  verify_issue ${issues[$i]} &
-  verify_issue ${issues[$i+1]} &
-  verify_issue ${issues[$i+2]} &
-  wait
-done
-```
-
-### Cache de Compilación
-
-```bash
-# Primera compilación: completa
-npx tsc --noEmit
-
-# Siguientes: incremental (más rápido)
-npx tsc --noEmit --incremental
-```
-
-### Reutilizar Sesión Browser
-
-```javascript
-// Abrir browser una vez
-await browser_navigate({ url: "http://localhost:3000" })
-
-// Para cada issue, solo navegar dentro
-for (issue of issues) {
-  await browser_click({ element: issue.page_tab })
-  await browser_console_messages({ level: "error" })
-}
-
-// Cerrar al final
-await browser_close()
-```
-
-## Integración con Workflow
-
-Este skill se ejecuta de forma **independiente** o como parte de un workflow:
-
-```
-DESARROLLO
-  ↓
-PASO 1: Issues marcados como "Done"
-  ↓
-PASO 2: 🔍 /qa:review-done <proyecto> ← ESTE SKILL
-  ↓
-  ¿Todos aprobados?
-  ├─ ✅ SÍ → Email celebración, issues en "Reviewed"
-  └─ ❌ NO → Email con errores, issues en "Done"
-  ↓
-PASO 3: Correcciones (si necesario)
-  ↓
-PASO 4: Re-ejecutar /qa:review-done
-```
-
-## Configuración de Email
-
-Para configurar el envío de emails, crear archivo `.claude/skills/qa-review-done/email-config.json`:
-
-```json
-{
-  "enabled": true,
-  "service": "sendgrid",
-  "api_key_env": "SENDGRID_API_KEY",
-  "from": "qa-bot@gextiona.com",
-  "to": "{{userEmail}}",
-  "subject_prefix": "[QA Review]",
-  "include_screenshots": true,
-  "priority": "normal"
-}
-```
-
-O usar variables de entorno:
-```bash
-export QA_EMAIL_TO="{{userEmail}}"
-export QA_EMAIL_FROM="qa-bot@gextiona.com"
-export SENDGRID_API_KEY="SG.xxx..."
-```
-
-## Output JSON (para automatización)
-
-```json
-{
-  "qa_review_result": {
-    "project_number": 7,
-    "project_title": "Revisión de Calidad - Frontend",
-    "timestamp": "2025-12-20T15:30:00Z",
-    "duration_seconds": 480,
-    "summary": {
-      "total_issues": 15,
-      "verified": 15,
-      "approved": 12,
-      "failed": 3
-    },
-    "approved_issues": [
-      {"number": 210, "title": "..."},
-      {"number": 211, "title": "..."}
-    ],
-    "failed_issues": [
-      {
-        "number": 216,
-        "title": "...",
-        "reason": "TypeScript errors",
-        "errors": ["Property 'nombre' does not exist"]
-      }
-    ],
-    "email_sent": true,
-    "email_to": "{{userEmail}}"
-  }
-}
-```
+1. **Browser session reutilizada:** Un solo navegador para todos los issues
+2. **TypeScript incremental:** Cache de compilación entre issues
+3. **Screenshots lazy:** Solo capturar cuando hay errores
+4. **Network capture continua:** Capturar una vez por issue, analizar después
 
 ## Notas Importantes
 
-- **SIEMPRE** verificar TypeScript compilation (frontend critical)
-- **SIEMPRE** capturar errores de consola browser
-- **SIEMPRE** tomar screenshots como evidencia
-- **SIEMPRE** enviar email al completar (aunque no haya issues)
 - **NUNCA** mover a Reviewed si hay errores
-- **NUNCA** skip verificaciones para acelerar
-- Si timeout (>15 min), reportar y enviar email con estado parcial
-- Screenshots se guardan en `.claude/qa-reports/<fecha>/screenshots/`
-- Reportes completos en `.claude/qa-reports/<fecha>/report.md`
-
-## Ejemplo de Ejecución Completa
-
-```bash
-$ /qa:review-done 7
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 QA REVIEW - PROYECTO #7
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Obteniendo issues en Done...
-✅ Encontrados: 15 issues
-
-Verificando issue #210...
-  ✅ Archivos: 3/3
-  ✅ TypeScript: Sin errores
-  ✅ Browser: 0 errores
-  🟢 MOVED TO REVIEWED
-
-Verificando issue #211...
-  ✅ Archivos: 5/5
-  ✅ TypeScript: Sin errores
-  ✅ Browser: 0 errores
-  🟢 MOVED TO REVIEWED
-
-Verificando issue #216...
-  ✅ Archivos: 2/2
-  ❌ TypeScript: 2 errores
-  🔴 KEPT IN DONE
-
-... (continúa)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ RESUMEN FINAL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✅ Verificados: 15/15
-✅ Aprobados: 12
-❌ Con problemas: 3
-⏱️  Tiempo: 8 min 23 seg
-
-📧 Enviando email a {{userEmail}}...
-✅ Email enviado correctamente
-
-📄 Reporte guardado en:
-   .claude/qa-reports/2025-12-20_1530/report.md
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+- **SIEMPRE** crear issue por cada error detectado
+- **SIEMPRE** comentar en issue original con enlaces
+- **SIEMPRE** capturar evidencia (screenshots, logs, network traces)
+- Issues creados automáticamente tienen labels: `bug,qa-failed,auto-created,severity:X`
+- Verificaciones Playwright son EXHAUSTIVAS - no omitir ninguna
