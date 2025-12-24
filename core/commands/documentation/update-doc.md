@@ -34,11 +34,10 @@ El usuario quiere actualizar la documentacion del proyecto. Argumentos: $ARGUMEN
 #### 1. Análisis Inicial
 
 1. **Leer estructura de documentación**:
-   - Leer `CLAUDE.md` (raíz) para entender la organización
-   - Leer `docs/claude/00-estructura.md` (si existe) para conocer la arquitectura documental
+   - Leer `CLAUDE.md` (raíz) para entender la organización y para conocer la arquitectura documental
    - Identificar todos los archivos .md en `docs/claude/`
 
-2. **Analizar cambios recientes**:
+1. **Analizar cambios recientes**:
    - Revisar commits desde el último release/tag
    - Identificar archivos modificados, creados o eliminados
    - Detectar cambios en:
@@ -222,7 +221,7 @@ Si se detectan cambios arquitecturales importantes:
 
 #### Documentos Faltantes
 Si se detecta funcionalidad sin documentar:
-1. Identificar el documento apropiado según `00-estructura.md`
+1. Identificar el documento apropiado según `CLAUDE.md` de la raiz del proyecto
 2. Sugerir creación de nuevo documento
 3. Proporcionar estructura base con contenido mínimo
 
