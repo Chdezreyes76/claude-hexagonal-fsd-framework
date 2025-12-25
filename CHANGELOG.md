@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-12-25
+
+### Added
+
+#### Integration of Issue Analyzer in Slash Commands 🎯
+- **Automatic Issue Classification**: `/github:start` and `/github:next` now use `issue-analyzer`
+  - New workflow: Select issue → Classify type → Plan implementation
+  - Automatic detection: backend, frontend, or fullstack
+  - Improved context for `issue-planner` agent
+  - Higher accuracy in implementation strategy selection
+
+#### Improved Slash Command Documentation 📚
+- **Better Text-Based Instructions**: Converted `issue-complete.md` from JS pseudocódigo to clear prose
+  - More readable and maintainable
+  - Easier for Claude Code to understand
+  - Better examples of expected outputs
+  - Reduced complexity without losing functionality
+
+### Changed
+
+#### Slash Command Workflow Enhancements 🔄
+- **`/github:start` Command**:
+  - Now invokes `issue-analyzer` (step 9) before `issue-planner` (step 10)
+  - Provides classification upfront: backend/frontend/fullstack
+  - Better preparation for specialized implementers
+
+- **`/github:next` Command**:
+  - Same enhancement: `issue-analyzer` before `issue-planner`
+  - Consistent workflow across commands
+
+- **`/workflow:issue-complete` Documentation**:
+  - Refactored parameter parsing section (clear table format)
+  - Session management explained step-by-step
+  - Timeout handling with examples
+  - Auto-selection logic simplified
+  - Project filtering improved with examples
+
+#### Documentation Improvements 📝
+- **Better Parameter Documentation**:
+  - Flag descriptions in table format
+  - `--autonomous` behavior clearly documented
+  - Examples of typical outputs
+
+- **Consistent Patterns**:
+  - All commands follow: Select → Classify → Plan → Implement
+  - Clearer invocation of agents (Task tool)
+
+### Fixed
+
+- **Redundant issue-planner Calls**: Removed duplication in workflow
+- **Command Consistency**: All slash commands now use issue-analyzer before issue-planner
+- **Documentation Clarity**: JS pseudocódigo replaced with natural language instructions
+
+### Notes
+
+**Pattern (Correct Flow)**:
+```
+/github:start #42
+  → Create branch
+  → Assign issue
+  → issue-analyzer (classify: backend/frontend/fullstack)
+  → issue-planner (plan implementation)
+  → Show classification + plan
+```
+
+**Improved Clarity**:
+- Skills provide knowledge (6 total)
+- Agents execute autonomously (8 total)
+- Slash commands orchestrate the workflow
+- Clear separation of concerns
+
 ## [1.3.1] - 2025-12-23
 
 ### Added

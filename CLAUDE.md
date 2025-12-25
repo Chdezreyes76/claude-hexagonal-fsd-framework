@@ -138,7 +138,7 @@ Generated `claude.config.json` in target projects:
 ```json
 {
   "version": "1.0.0",
-  "frameworkVersion": "1.3.1",
+  "frameworkVersion": "1.3.2",
   "project": { "name", "nameSnake", "nameKebab", "version" },
   "team": { "owner": { "name", "email" }, "github": { "owner", "repo", "mainBranch" } },
   "stack": { "backend", "frontend", "database" },
@@ -413,12 +413,13 @@ When adding new Bash commands to skills/commands, update `core/settings.json.tmp
 
 ## Version Management
 
-- Framework version in `cli/package.json` (currently 1.3.1)
+- Framework version in `cli/package.json` (currently 1.3.2)
 - Target project version set during init wizard
 - Version compatibility tracked in generated `claude.config.json`
 - Follow Semantic Versioning (MAJOR.MINOR.PATCH)
 - v1.3.0 introduced autonomous workflow capabilities (zero-intervention mode)
 - v1.3.1 restructured skills vs agents for clarity and Claude Code compatibility
+- v1.3.2 integrated issue-analyzer in slash commands and improved documentation
 
 ## Common Pitfalls
 

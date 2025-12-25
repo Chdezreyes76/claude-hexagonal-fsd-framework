@@ -1,6 +1,6 @@
 {
   "name": "@claude-framework/cli",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "CLI for Claude Hexagonal+FSD Framework initialization",
   "main": "index.js",
   "bin": {
