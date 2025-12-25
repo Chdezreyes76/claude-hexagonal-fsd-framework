@@ -39,9 +39,11 @@ El usuario quiere comenzar a trabajar en un issue. Argumentos: $ARGUMENTS
    git checkout -b <nombre-branch>
    ```
 
-7. **Asignar el issue al usuario actual**:
+7. **Asignar el issue al usuario actual y moverlo a la columna "In Progress"**:
    ```
    gh issue edit <numero> --add-assignee @me
+   gh project column list <project-id>
+   gh project column move-issue <column-id> <numero>
    ```
 
 8. **Actualizar labels del issue**:
@@ -49,11 +51,16 @@ El usuario quiere comenzar a trabajar en un issue. Argumentos: $ARGUMENTS
    gh issue edit <numero> --remove-label "status: needs-triage" --remove-label "status: ready"
    ```
 
-9. **Invocar al agente issue-planner**:
-   - Usar Task tool con subagent_type="issue-planner" para analizar el issue
-   - El agente propondra un plan de implementacion
+9. **Invocar al agente issue-analyzer**:
+   - Usar Task tool con subagent_type="issue-analyzer"
+   - Obtener clasificación: backend/frontend/fullstack
+   
+10. **Invocar al agente issue-planner**:
+   - Usar Task tool con subagent_type="issue-planner"
+   - El agente usará la clasificación del analyzer para mejor contexto
+   - El agente propondrá plan de implementación
 
-10. **Mostrar al usuario**:
+11. **Mostrar al usuario**:
     - Branch creada
     - Issue asignado
     - Plan de implementacion propuesto

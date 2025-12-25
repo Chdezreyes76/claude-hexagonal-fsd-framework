@@ -75,364 +75,294 @@ El flag `--autonomous` es un **alias inteligente** que habilita automáticamente
 
 ### Parsear Parámetros de $ARGUMENTS
 
-Primero, detectar los flags de autonomía:
+Antes de iniciar, detectar e interpretar todos los flags disponibles:
 
-```javascript
-// Detectar flags principales
-const loopMode = $ARGUMENTS.includes('--loop')
-const autonomousMode = $ARGUMENTS.includes('--autonomous')
+#### Detectar Flags Principales
 
-// Extraer --max=N
-const maxMatch = $ARGUMENTS.match(/--max=(\d+)/)
-const maxIssues = maxMatch ? parseInt(maxMatch[1]) : null
+- `--loop`: Activa modo bucle automático
+- `--autonomous`: Alias inteligente que activa todas las características autónomas
+- `--auto-select`: Auto-selecciona el issue #1 sin preguntar (solo con --loop)
+- `--auto-fix-reviews=N`: Permite N ciclos de auto-corrección en code review (default: 2 con --autonomous)
+- `--auto-resolve-conflicts`: Intenta resolver conflictos de merge automáticamente
+- `--epic-breakdown-on-failure`: Convierte issues complejos a Epics en lugar de fallar
+- `--skip-on-failure`: Salta issues que fallan en lugar de preguntar
 
-// Extraer --project=N
-const projectMatch = $ARGUMENTS.match(/--project=(\d+)/)
-const projectNumber = projectMatch ? parseInt(projectMatch[1]) : null
+#### Extraer Parámetros con Valores
 
-// ============================================================
-// FASE 7: --autonomous es un ALIAS que activa todo lo siguiente
-// ============================================================
+- `--max=N`: Máximo de issues a procesar (N es número)
+- `--project=N`: Filtra solo issues del proyecto GitHub #N (N es número)
+- `--save-session[=ruta]`: Guarda estado después de cada issue
+  - Si `--save-session=ruta/archivo.json`, guardar en esa ruta
+  - Si `--save-session` sin ruta, usar default: `.claude/session/workflow-session.json`
+  - Si `--autonomous`, guardar automáticamente en default
+- `--resume=ruta`: Reanuda sesión desde archivo JSON guardado previamente
+- `--timeout-per-issue=N`: Timeout máximo en minutos por issue (default: 10 con --autonomous)
+- `--max-consecutive-failures=N`: Circuit breaker - detener después de N fallos consecutivos (default: 3 con --autonomous)
 
-// Auto-selección (Fase 1)
-const autoSelectExplicit = $ARGUMENTS.includes('--auto-select')
-const autoSelect = autoSelectExplicit || autonomousMode
+#### Comportamiento del Flag `--autonomous`
 
-// Auto-corrección de code reviews (Fase 4)
-const autoFixMatch = $ARGUMENTS.match(/--auto-fix-reviews=(\d+)/)
-const autoFixReviews = autoFixMatch ? parseInt(autoFixMatch[1]) : (autonomousMode ? 2 : 0)
+El flag `--autonomous` es un **alias inteligente** que habilita automáticamente:
 
-// Skip on failure
-const skipOnFailure = $ARGUMENTS.includes('--skip-on-failure') || autonomousMode
+| Característica | Activado | Valor Default |
+|---|---|---|
+| Auto-selección | ✅ | N/A |
+| Auto-corrección reviews | ✅ | 2 ciclos |
+| Skip on failure | ✅ | N/A |
+| Auto-resolve conflicts | ✅ | N/A |
+| Epic breakdown | ✅ | N/A |
+| Persistencia sesión | ✅ | `.claude/session/workflow-session.json` |
+| Timeout por issue | ✅ | 10 minutos |
+| Circuit breaker | ✅ | 3 fallos consecutivos |
 
-// Auto-resolución de conflictos (Fase 5)
-const autoResolveConflictsExplicit = $ARGUMENTS.includes('--auto-resolve-conflicts')
-const autoResolveConflicts = autoResolveConflictsExplicit || autonomousMode
+#### Mostrar Resumen de Configuración
 
-// Epic breakdown on failure (Fase 2)
-const epicBreakdownOnFailure = $ARGUMENTS.includes('--epic-breakdown-on-failure') || autonomousMode
+Si `--autonomous` está activo, mostrar:
 
-// Persistencia de sesión (Fase 6)
-const saveSessionMatch = $ARGUMENTS.match(/--save-session(?:=(.+))?/)
-const saveSession = saveSessionMatch
-  ? (saveSessionMatch[1] || '.claude/session/workflow-session.json')
-  : (autonomousMode ? '.claude/session/workflow-session.json' : null)
+```
+⚡ MODO AUTÓNOMO ACTIVADO
 
-const resumeMatch = $ARGUMENTS.match(/--resume=(.+)/)
-const resumeSessionPath = resumeMatch ? resumeMatch[1] : null
-
-// Timeout por issue (Fase 6)
-const timeoutMatch = $ARGUMENTS.match(/--timeout-per-issue=(\d+)/)
-const timeoutPerIssue = timeoutMatch
-  ? parseInt(timeoutMatch[1])
-  : (autonomousMode ? 10 : null)  // Default: 10 min en modo autónomo
-
-// Circuit breaker (Fase 6)
-const maxFailuresMatch = $ARGUMENTS.match(/--max-consecutive-failures=(\d+)/)
-const maxConsecutiveFailures = maxFailuresMatch
-  ? parseInt(maxFailuresMatch[1])
-  : (autonomousMode ? 3 : null)  // Default: 3 en modo autónomo
-
-// ============================================================
-// Resumen de configuración cuando --autonomous está activo
-// ============================================================
-if (autonomousMode) {
-  console.log(`\n⚡ MODO AUTÓNOMO ACTIVADO`)
-  console.log(`   Configuración habilitada automáticamente:`)
-  console.log(`   ├─ Auto-selección: ✅`)
-  console.log(`   ├─ Auto-corrección reviews: ${autoFixReviews} ciclos`)
-  console.log(`   ├─ Skip on failure: ✅`)
-  console.log(`   ├─ Auto-resolve conflicts: ✅`)
-  console.log(`   ├─ Epic breakdown: ✅`)
-  console.log(`   ├─ Persistencia sesión: ✅`)
-  console.log(`   ├─ Timeout por issue: ${timeoutPerIssue} min`)
-  console.log(`   └─ Circuit breaker: ${maxConsecutiveFailures} fallos`)
-  console.log()
-}
+Configuración habilitada automáticamente:
+├─ Auto-selección: ✅
+├─ Auto-corrección reviews: 2 ciclos
+├─ Skip on failure: ✅
+├─ Auto-resolve conflicts: ✅
+├─ Epic breakdown: ✅
+├─ Persistencia sesión: ✅
+├─ Timeout por issue: 10 min
+└─ Circuit breaker: 3 fallos consecutivos
 ```
 
 ### Inicializar o Reanudar Sesión (Nuevo - Fase 6)
 
-```javascript
-let session
+#### Si se especificó `--resume=ruta`
 
-if (resumeSessionPath) {
-  // REANUDAR SESIÓN EXISTENTE
-  console.log(`📂 Reanudando sesión desde: ${resumeSessionPath}`)
+1. **Intentar cargar sesión existente**:
+   - Leer archivo JSON desde la ruta especificada
+   - Mostrar:
+     ```
+     📂 Reanudando sesión desde: ruta/archivo.json
+     ✅ Sesión cargada:
+        Iniciada: 2024-01-15 10:30:45
+        Issues completados: 5
+        Issues saltados: 2
+        Issues pendientes: 8
+        Progreso: 5/15
+     ⏭️  Continuando desde donde se quedó...
+     ```
 
-  try {
-    const sessionData = await fs.readFile(resumeSessionPath, 'utf-8')
-    session = JSON.parse(sessionData)
+2. **Validar consistencia**:
+   - Si se especificó `--project=N` en argumentos, verificar que coincida con `session.projectNumber`
+   - Si no coinciden, mostrar error y terminar:
+     ```
+     ❌ Conflicto: Sesión es del proyecto #7, pero se especificó --project=3
+     ```
 
-    console.log(`\n✅ Sesión cargada:`)
-    console.log(`   Iniciada: ${new Date(session.startTime).toLocaleString()}`)
-    console.log(`   Issues completados: ${session.issuesResueltos.length}`)
-    console.log(`   Issues saltados: ${session.issuesSaltados.length}`)
-    console.log(`   Issues pendientes: ${session.issuesPendientes.length}`)
-    console.log(`   Progreso: ${session.issuesResueltos.length}/${session.maxIssues || '∞'}`)
-    console.log(`\n⏭️  Continuando desde donde se quedó...\n`)
+3. **Si hay error al cargar**, crear nueva sesión:
+   ```
+   ❌ Error al cargar sesión: [descripción del error]
+   Iniciando nueva sesión...
+   ```
 
-    // Validar que la sesión sea del mismo proyecto
-    if (projectNumber && session.projectNumber !== projectNumber) {
-      throw new Error(`La sesión es del proyecto #${session.projectNumber}, pero se especificó --project=${projectNumber}`)
-    }
+#### Si NO hay sesión previa o está vacía
 
-  } catch (error) {
-    console.log(`\n❌ Error al cargar sesión: ${error.message}`)
-    console.log(`   Iniciando nueva sesión...\n`)
-    session = null
-  }
-}
+1. **Crear nueva sesión** con estructura:
+   - `sessionId`: Identificador único (timestamp + random string)
+   - `startTime`: Timestamp de inicio
+   - `status`: 'in_progress' (se cambia a 'completed' o 'aborted' al terminar)
+   - Configuración: `loopMode`, `autonomousMode`, `autoSelect`, `maxIssues`, `projectNumber`, etc.
+   - Contadores vacíos: `issuesResueltos: []`, `issuesSaltados: []`, `issuesPendientes: []`, `issuesConvertidosEpic: []`
+   - Estadísticas: `totalImplementationAttempts: 0`, `successfulImplementations: 0`, `autoCorrections: 0`, etc.
 
-if (!session) {
-  // NUEVA SESIÓN
-  // Generar ID único para la sesión
-  const generateSessionId = () => {
-    const timestamp = Date.now().toString(36)
-    const random = Math.random().toString(36).substring(2, 9)
-    return `${timestamp}-${random}`
-  }
+2. **Mostrar resumen**:
+   ```
+   🚀 Nueva sesión iniciada
+      ID: a1b2c3d-e4f5g6
+      Modo: Autónomo (o Loop / Normal)
+      Máximo: 15 issues
+      Proyecto: #7 (si aplica)
+      Guardando en: .claude/session/workflow-session.json (si aplica)
+      Timeout: 10 minutos por issue (si aplica)
+      Circuit breaker: 3 fallos consecutivos (si aplica)
+   ```
 
-  session = {
-    sessionId: generateSessionId(),  // ID único para tracking
-    startTime: Date.now(),
-    status: 'in_progress',           // in_progress | completed | aborted
-    loopMode: loopMode,
-    autonomousMode: autonomousMode,
-    autoSelect: autoSelect,
-    maxIssues: maxIssues,
-    projectNumber: projectNumber,
-    saveSession: saveSession,
-    timeoutPerIssue: timeoutPerIssue,
-    maxConsecutiveFailures: maxConsecutiveFailures,
-
-    // Contadores
-    issuesResueltos: [],
-    issuesSaltados: [],
-    issuesConvertidosEpic: [],
-    issuesPendientes: [],
-
-    // Auto-corrección (Fase 4)
-    autoFixReviews: autoFixReviews,
-    skipOnFailure: skipOnFailure,
-
-    // Auto-resolución de conflictos (Fase 5)
-    autoResolveConflicts: autoResolveConflicts,
-
-    // Epic breakdown (Fase 2)
-    epicBreakdownOnFailure: epicBreakdownOnFailure,
-
-    // Circuit breaker (Fase 6)
-    consecutiveFailures: 0,
-
-    // Estadísticas
-    stats: {
-      totalImplementationAttempts: 0,
-      successfulImplementations: 0,
-      autoCorrections: 0,
-      conflictsResolved: 0,
-      conflictsSkipped: 0
-    }
-  }
-
-  console.log(`\n🚀 Nueva sesión iniciada`)
-  console.log(`   ID: ${session.sessionId}`)
-  console.log(`   Modo: ${autonomousMode ? 'Autónomo' : (loopMode ? 'Loop' : 'Normal')}`)
-  if (maxIssues) console.log(`   Máximo: ${maxIssues} issues`)
-  if (projectNumber) console.log(`   Proyecto: #${projectNumber}`)
-  if (saveSession) console.log(`   Guardando en: ${saveSession}`)
-  if (timeoutPerIssue) console.log(`   Timeout: ${timeoutPerIssue} minutos por issue`)
-  if (maxConsecutiveFailures) console.log(`   Circuit breaker: ${maxConsecutiveFailures} fallos consecutivos`)
-  console.log()
-}
-
-// Crear directorio de sesiones si no existe (usando Bash)
-if (saveSession) {
-  const sessionDir = path.dirname(saveSession)
-  await Bash(`mkdir -p "${sessionDir}"`)
-}
-```
+3. **Crear directorio de sesiones** si se usa `--save-session`:
+   - Crear directorio padre si no existe
+   - Ejemplo: Si `--save-session=.claude/sessions/session.json`, crear `.claude/sessions/`
 
 ### Sin filtro de proyecto
 
-Ejecutar el command `/github:next`:
+Ejecutar el comando `/github:next`:
 
 ```bash
 /github:next
 ```
 
-Esto automáticamente:
-- Analiza issues por prioridad
-- Muestra top 5 más urgentes
-- **Si autoSelect está habilitado**: Selecciona automáticamente el #1 (más prioritario)
-- **Si autoSelect está deshabilitado**: Pregunta cuál resolver
-- Crea rama e inicia trabajo
-- Obtiene plan del issue-planner
+Este comando automáticamente:
+1. Analiza todos los issues abiertos por prioridad
+2. Selecciona los top 5 más urgentes
+3. Aplica la estrategia de selección:
+   - **Si `--auto-select` o `--autonomous`**: Selecciona automáticamente el #1 (más prioritario) sin preguntar
+   - **Si NO auto-select**: Pregunta al usuario cuál resolver usando `AskUserQuestion`
+4. Crea rama e inicia trabajo (vía `/github:start`)
+5. Invoca `issue-analyzer` para clasificar el tipo de implementación
+6. Invoca `issue-planner` para obtener plan de implementación
 
-**Lógica de auto-selección**:
-```javascript
-if (loopMode && autoSelect) {
-  // En modo loop con auto-select, SIEMPRE seleccionar automáticamente el #1
-  const topIssue = priorities[0]
-  console.log(`✅ Auto-seleccionado: #${topIssue.number} "${topIssue.title}" (prioridad más alta)`)
-  selectedIssue = topIssue
-} else {
-  // Modo normal: preguntar al usuario
-  const answer = await AskUserQuestion("¿Cuál issue quieres resolver?")
-  selectedIssue = priorities[answer - 1]
-}
-```
+**Flujo de Selección**:
+
+| Condición | Acción |
+|-----------|--------|
+| `--auto-select` activo | Seleccionar automáticamente el issue #1 del top 5 |
+| `--autonomous` activo | Seleccionar automáticamente el issue #1 del top 5 |
+| Ninguno de los anteriores | Mostrar top 5 y preguntar al usuario cuál resolver |
 
 ### Con filtro de proyecto (`--project=N`)
 
-Si se especificó `--project=N` en $ARGUMENTS:
+Si se especificó `--project=N` en los argumentos:
 
 1. **Obtener issues del proyecto**:
    ```bash
    gh project item-list N --owner {{githubOwner}} --format json --limit 1000
    ```
+   - Extraer números de issues desde el JSON
+   - Filtrar solo issues (descartar PRs)
+   - Filtrar solo issues en estado OPEN
 
-2. **Filtrar solo issues abiertos del proyecto**:
-   - Extraer números de issue del JSON
-   - Descartar PRs (solo issues)
-   - Filtrar por estado OPEN
+2. **Obtener detalles de cada issue**:
+   - Para cada issue del proyecto, obtener: `number`, `title`, `labels`, `priority`
+   - Clasificar por prioridad: critical → high → medium → low → sin label
 
-3. **Obtener detalles y clasificar**:
-   - Para cada issue, obtener labels y prioridad
-   - Clasificar por prioridad (critical → high → medium → low)
-   - Obtener top 5 más prioritarios **del proyecto**
+3. **Seleccionar top 5 más prioritarios del proyecto**:
+   - Mostrar:
+     ```
+     Top 5 issues del proyecto #7:
+     1. #42 [CRÍTICA] feat: implementar autenticación
+     2. #38 [ALTA] fix: bug en reportes
+     3. #25 [MEDIA] refactor: optimizar queries
+     4. #18 [MEDIA] feat: agregar gráfico
+     5. #12 [BAJA] docs: actualizar README
+     ```
 
-4. **Aplicar auto-selección o preguntar**:
-   - Mostrar top 5 del proyecto
-   - **Si autoSelect**: Seleccionar automáticamente el #1 del proyecto
-   - **Si no autoSelect**: Ejecutar `/github:next` para que el usuario seleccione el issue
+4. **Aplicar estrategia de selección**:
+   - **Si `--auto-select` o `--autonomous`**: Seleccionar automáticamente el #1 del proyecto (mostrar: "✅ Auto-seleccionado del proyecto #7: #42...")
+   - **Si NO auto-select**: Usar `AskUserQuestion` para que el usuario seleccione de los top 5
 
-**Lógica de auto-selección con proyecto**:
-```javascript
-if (loopMode && autoSelect && projectNumber) {
-  // Auto-seleccionar el issue más prioritario del proyecto
-  const projectIssues = await getProjectIssues(projectNumber)
-  const topIssue = projectIssues[0]
+5. **Ejecutar `/github:start` con el issue seleccionado**:
+   - Crea rama e inicia trabajo
+   - Invoca `issue-analyzer` y `issue-planner`
 
-  console.log(`✅ Auto-seleccionado del proyecto #${projectNumber}: #${topIssue.number} "${topIssue.title}"`)
-
-  // Ejecutar /github:start con el issue específico
-  // (esto creará branch, asignará issue, invocará issue-planner agent)
-} else if (projectNumber) {
-  // Modo normal con proyecto: mostrar top 5 y preguntar
-  const projectIssues = await getProjectIssues(projectNumber)
-  console.log("Top 5 issues del proyecto:")
-  projectIssues.slice(0, 5).forEach((issue, idx) => {
-    console.log(`  ${idx + 1}. #${issue.number} [${issue.priority}] ${issue.title}`)
-  })
-
-  const answer = await AskUserQuestion("¿Cuál issue del proyecto quieres resolver?")
-  const selectedIssue = projectIssues[answer - 1]
-
-  // Ejecutar /github:start con el issue seleccionado
-}
-```
-
-**Output esperado**: Branch creada, issue asignado (auto-seleccionado o elegido manualmente), plan mostrado
+**Output esperado**:
+- Branch creada
+- Issue asignado (auto-seleccionado o elegido manualmente)
+- Clasificación del tipo de implementación (backend/frontend/fullstack)
+- Plan de implementación mostrado
 
 ---
 
 ### Envolver Issue con Timeout (Nuevo - Fase 6)
 
-Cada issue se ejecuta con un timeout configurable para prevenir bloqueos indefinidos:
+Si se especificó `--timeout-per-issue=N` (o está activo `--autonomous`), cada issue se ejecuta con límite máximo de tiempo:
 
-```javascript
-// Envolver el workflow del issue con timeout
-const issueStartTime = Date.now()
-let issueResult = null
-let timeoutOccurred = false
+#### Registrar Inicio del Issue
 
-// Timeout wrapper
-const issuePromise = executeIssueWorkflow(issue)  // PASOS 2-5
-const timeoutPromise = new Promise((_, reject) => {
-  if (session.timeoutPerIssue) {
-    setTimeout(() => {
-      timeoutOccurred = true
-      reject(new Error(`Timeout: Issue excedió ${session.timeoutPerIssue} minutos`))
-    }, session.timeoutPerIssue * 60 * 1000)
-  } else {
-    // Sin timeout, nunca rechazar
-    return new Promise(() => {})
-  }
-})
+1. Guardar timestamp de inicio
+2. Si se configura timeout, preparar mecanismo para abortar después de N minutos
 
-try {
-  issueResult = await Promise.race([issuePromise, timeoutPromise])
+#### Ejecutar Pasos 2-5 con Protección
 
-  // Issue completado exitosamente
-  const issueDuration = Math.round((Date.now() - issueStartTime) / 1000 / 60)
+Ejecutar el workflow del issue (implementación, PR, review, merge) dentro de la ventana de tiempo.
 
-  session.issuesResueltos.push({
-    number: issue.number,
-    title: issue.title,
-    pr: prNumber,
-    duration: issueDuration,
-    autoCorrections: autoCorrectionCycles || 0,
-    conflictsResolved: conflictsResolved || false,
-    completedAt: Date.now()
-  })
+#### Si Completa Exitosamente
 
-  // Reset consecutive failures
-  session.consecutiveFailures = 0
+Dentro del timeout:
 
-  console.log(`\n✅ Issue #${issue.number} completado exitosamente`)
-  console.log(`   Duración: ${issueDuration} minutos`)
+1. **Registrar completitud**:
+   - Calcular duración (minutos transcurridos)
+   - Agregar a `session.issuesResueltos`:
+     ```json
+     {
+       "number": 42,
+       "title": "feat: implementar autenticación",
+       "pr": "#123",
+       "duration": 15,
+       "autoCorrections": 0,
+       "conflictsResolved": false,
+       "completedAt": 1705329045000
+     }
+     ```
+   - Resetear contador de fallos consecutivos a 0
 
-} catch (error) {
-  const issueDuration = Math.round((Date.now() - issueStartTime) / 1000 / 60)
+2. **Mostrar**:
+   ```
+   ✅ Issue #42 completado exitosamente
+      Duración: 15 minutos
+   ```
 
-  if (timeoutOccurred) {
-    // TIMEOUT: Issue excedió tiempo máximo
-    console.log(`\n⏱️ TIMEOUT: Issue #${issue.number} excedió ${session.timeoutPerIssue} minutos`)
-    console.log(`   El issue tomó demasiado tiempo y fue abortado`)
+#### Si Excede el Timeout
 
-    session.issuesSaltados.push({
-      number: issue.number,
-      title: issue.title,
-      reason: `Timeout después de ${session.timeoutPerIssue} minutos`,
-      duration: issueDuration,
-      timestamp: Date.now()
-    })
+Si se alcanza el límite máximo de tiempo sin completar:
 
-    // Incrementar fallos consecutivos
-    session.consecutiveFailures++
+1. **Abortar ejecución**:
+   - Detener workflow actual
+   - Limpiar estado: `git checkout master && git branch -D <rama>`
 
-    // Limpiar estado
-    await Bash('git checkout master && git branch -D ' + branchName)
+2. **Registrar en saltados**:
+   ```json
+   {
+     "number": 42,
+     "title": "feat: implementar autenticación",
+     "reason": "Timeout después de 10 minutos",
+     "duration": 10,
+     "timestamp": 1705329045000
+   }
+   ```
 
-    console.log(`\n⚠️ Saltando issue por timeout`)
-    console.log(`   Fallos consecutivos: ${session.consecutiveFailures}/${session.maxConsecutiveFailures}`)
+3. **Incrementar contador de fallos**:
+   - Sumar 1 a `session.consecutiveFailures`
 
-  } else {
-    // ERROR: Otro tipo de error
-    console.log(`\n❌ Error en issue #${issue.number}: ${error.message}`)
+4. **Mostrar**:
+   ```
+   ⏱️ TIMEOUT: Issue #42 excedió 10 minutos
+      El issue tomó demasiado tiempo y fue abortado
 
-    session.issuesSaltados.push({
-      number: issue.number,
-      title: issue.title,
-      reason: `Error: ${error.message}`,
-      duration: issueDuration,
-      timestamp: Date.now()
-    })
+   ⚠️ Saltando issue por timeout
+      Fallos consecutivos: 1/3
+   ```
 
-    session.consecutiveFailures++
+5. **Verificar circuit breaker**:
+   - Si `session.consecutiveFailures >= session.maxConsecutiveFailures`, detener workflow completamente (ver sección "Circuit Breaker")
 
-    console.log(`\n⚠️ Saltando issue por error`)
-    console.log(`   Fallos consecutivos: ${session.consecutiveFailures}/${session.maxConsecutiveFailures}`)
-  }
-}
-```
+#### Si Falla por Otro Error
+
+Si hay error durante ejecución (fuera de timeout):
+
+1. **Registrar error**:
+   ```json
+   {
+     "number": 42,
+     "title": "feat: implementar autenticación",
+     "reason": "Error: [descripción del error]",
+     "duration": 8,
+     "timestamp": 1705329045000
+   }
+   ```
+
+2. **Incrementar consecutiveFailures**: Sumar 1
+
+3. **Mostrar**:
+   ```
+   ❌ Error en issue #42: [descripción]
+
+   ⚠️ Saltando issue por error
+      Fallos consecutivos: 1/3
+   ```
+
+4. **Verificar circuit breaker**: Si alcanzó límite, detener
 
 **Beneficios del timeout**:
-- ✅ Previene bloqueos indefinidos en issues problemáticos
-- ✅ Permite continuar con otros issues en lugar de quedarse atascado
+- ✅ Previene bloqueos indefinidos
+- ✅ Permite continuar con otros issues
 - ✅ Tracking de duración para identificar issues lentos
-- ✅ Circuit breaker puede detectar patrones de timeouts
+- ✅ Circuit breaker detecta patrones de fallos
 
 ---
 

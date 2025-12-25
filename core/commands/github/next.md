@@ -139,8 +139,13 @@ Una vez el usuario selecciona un issue, ejecutar:
    gh issue edit <numero> --remove-label "status: needs-triage" --remove-label "status: ready"
    ```
 
-8. **Invocar agente issue-planner**:
-   - Usar Task tool con `subagent_type="issue-planner"`
+8. **Invocar al agente issue-analyzer**:
+   - Usar Task tool con subagent_type="issue-analyzer"
+   - Obtener clasificación: backend/frontend/fullstack
+   
+9. **Invocar al agente issue-planner**:
+   - Usar Task tool con subagent_type="issue-planner"
+   - El agente usará la clasificación del analyzer para mejor contexto
    - El agente propondrá plan de implementación
 
 ### PASO 5: Mensaje Final

@@ -33,6 +33,8 @@ Extraer:
 
 ### PASO 2: Análisis Semántico
 
+MUY IMPORTANTE: NO USAR SOLO LABELS. Analizar contenido real Y INFORMATE BIEN CON CLAUDE.md SOBRE LA ESTRUCTURA DEL PROYECTO Y METODOLOGÍA DE DESARROLLO.
+
 #### Detectar BACKEND si contiene:
 
 **Keywords en título/descripción:**
