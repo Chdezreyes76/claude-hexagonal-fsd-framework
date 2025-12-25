@@ -157,12 +157,25 @@ Mostrar resumen y próximos pasos:
 
 📋 Branch: feat/42-filtro-fecha-nominas
 👤 Asignado a: @me
+🤖 Clasificación: frontend (confidence: high)
 🎯 Plan: [Resumen del issue-planner]
 
 ⏭️  Próximos pasos:
-1. Implementa los cambios siguiendo el plan
-2. Haz commits con formato: tipo(scope): mensaje #42
-3. Cuando termines, ejecuta: /github:merge
+
+OPCIÓN 1: Implementación Manual ✏️
+  1. Implementa los cambios siguiendo el plan
+  2. Haz commits con formato: tipo(scope): mensaje #42
+  3. Cuando termines, ejecuta: /github:pr
+  4. Luego: /github:merge
+
+OPCIÓN 2: Implementación Automática (RECOMENDADO) 🤖
+  Ejecuta: /workflow:issue-complete
+
+  El workflow automático:
+  - Invoca frontend-implementer (basado en tu clasificación)
+  - Implementa, crea PR, hace code review y mergea
+  - Si falla, reintenta hasta 3 veces
+  - Puedes continuar con siguiente issue si usas --loop
 
 💡 Tip: Los commits deben incluir "#42" en el mensaje
 ```

@@ -23,6 +23,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better examples of expected outputs
   - Reduced complexity without losing functionality
 
+#### Clarification of Implementer Agent Usage ✨
+- **Explicit Workflow Steps**: Clear documentation of when and how specialized implementers are used
+  - `/github:start`: Preparation only (branch, classify, plan) - **Does NOT implement**
+  - `/github:next`: Same as start, with automatic issue selection
+  - `/workflow:issue-complete`: Orchestration + implementation (selects implementer based on classification)
+
+- **Two Implementation Options in `/github:start` and `/github:next`**:
+  1. **Manual Implementation**: User edits code following plan, creates PR manually
+  2. **Automatic Implementation**: Delegates to `/workflow:issue-complete` which selects the right implementer
+
+- **Automatic Implementer Selection**:
+  - Classification from `issue-analyzer` determines which implementer is invoked
+  - Backend issue → `backend-implementer` (hexagonal architecture patterns)
+  - Frontend issue → `frontend-implementer` (FSD patterns)
+  - Fullstack issue → `fullstack-implementer` (coordinates both)
+
+- **Documentation Enhancements**:
+  - New section: "Próximos Pasos Después de /start" in `/github:start`
+  - Manual vs Automatic comparison tables
+  - Real-world examples: backend, frontend, fullstack issues
+  - Clear diagram: "Cómo Funciona la Selección del Implementer"
+
 ### Changed
 
 #### Slash Command Workflow Enhancements 🔄
