@@ -1,15 +1,173 @@
 ---
-allowed-tools: Bash(cd:*). Bash(mkdir:*), Bash(cp:*), Bash(touch:*), Bash(cat:*), Bash(echo:*)
+allowed-tools: Bash(cd:*). Bash(mkdir:*), Bash(cp:*), Bash(touch:*), Bash(cat:*), Bash(echo:*), Task
 argument-hint: |
   Especifica el documento a actualizar. Opciones:
     - `CLAUDE.md` - Documentacion de Claude
     - `README.md` - Documentacion principal del proyecto
     - `CHANGELOG.md` - Registro de cambios del proyecto
-  - `all` - Actualizar todos los documentos disponibles
-description: Actualiza la documentacion especificada en el proyecto.
+    - `all` - Actualizar todos los documentos disponibles
+    - `--simulacion` - Simular cambios sin ejecutarlos (análisis y propuesta)
+description: Actualiza la documentacion especificada en el proyecto. Soporta --simulacion para proponer cambios sin ejecutarlos.
 ---
 
 El usuario quiere actualizar la documentacion del proyecto. Argumentos: $ARGUMENTS
+
+## Instrucciones Iniciales
+
+### Verificar Modo de Operación
+
+1. **Detectar si se especificó `--simulacion`**:
+   - Si los argumentos incluyen `--simulacion`, ejecutar en MODO SIMULACIÓN
+   - Extraer el nombre del documento: el argumento ANTES de `--simulacion`
+   - Ejemplo: `CLAUDE.md --simulacion` → Simular cambios para CLAUDE.md
+   - Ejemplo: `all --simulacion` → Simular cambios para todos los documentos
+
+2. **MODO SIMULACIÓN - Solo análisis, sin cambios**:
+   - **NO** crear o modificar archivos
+   - **NO** hacer commits
+   - Analizar el documento especificado
+   - Detectar cambios necesarios desde el último commit
+   - Generar reporte sucinto con:
+     - ✅ Cambios detectados en el repositorio
+     - 📝 Documentos que necesitan actualización
+     - 🔍 Secciones específicas a actualizar
+     - 📊 Resumen visual de lo que se haría
+
+3. **MODO NORMAL - Ejecutar cambios**:
+   - Si NO incluye `--simulacion`, proceder con las instrucciones completas abajo
+   - Realizar todos los cambios normalmente
+
+---
+
+## Ejecución del MODO SIMULACIÓN
+
+### PASO 1: Análisis de Cambios Recientes
+
+1. **Obtener commits recientes**:
+   ```bash
+   git log --oneline -20
+   ```
+
+2. **Detectar últimos cambios**:
+   ```bash
+   git diff HEAD~5..HEAD --name-status
+   ```
+   Esto muestra: Archivos creados, modificados o eliminados en los últimos 5 commits
+
+3. **Analizar cambios específicos**:
+   - Para cada archivo modificado, revisar qué cambió
+   - Identificar si afecta directamente la documentación solicitada
+   - Categorizar el cambio según el tipo
+
+### PASO 2: Mapeo de Cambios a Documentación
+
+Para el documento especificado (`CLAUDE.md`, `README.md`, `CHANGELOG.md` o `all`):
+
+**Si es CLAUDE.md**:
+- Revisar cambios en estructura de carpetas/archivos
+- Revisar cambios en configuración (package.json, requirements.txt, etc.)
+- Revisar cambios en migraciones, endpoints, componentes, dependencias
+- Detectar si hay nuevas secciones a documentar o secciones obsoletas
+
+**Si es README.md**:
+- Revisar si hay cambios de instalación/configuración
+- Revisar si se agregaron características principales
+- Revisar si hay nuevas tecnologías o dependencias
+- Revisar cambios en instrucciones de uso
+
+**Si es CHANGELOG.md**:
+- Revisar si hay commits que no están documentados
+- Revisar si la última versión en el documento coincide con el tag más reciente
+- Detectar cambios categorizados por tipo (features, fixes, refactors, etc.)
+
+### PASO 3: Generar Reporte de Simulación
+
+**Formato del reporte (SUCINTO Y VISUAL)**:
+
+```
+🔍 SIMULACIÓN DE ACTUALIZACIÓN: [DOCUMENTO]
+═══════════════════════════════════════════════
+
+📊 CAMBIOS DETECTADOS EN EL REPOSITORIO
+─────────────────────────────────────────
+✅ Últimos 5 commits:
+   - Commit 1: [tipo] descripción
+   - Commit 2: [tipo] descripción
+   - ...
+
+📁 ARCHIVOS MODIFICADOS
+─────────────────────────────────────────
+📝 M core/commands/github/start.md (refactor: mejoras UI)
+📝 M cli/package.json (version: 1.3.2)
+✨ A core/agents/nuevo-agente.md (new feature)
+🗑️  D docs/deprecated.md (obsolete)
+
+📋 DOCUMENTOS QUE NECESITAN ACTUALIZACIÓN
+─────────────────────────────────────────
+Para [DOCUMENTO]:
+
+  🔴 CAMBIOS CRÍTICOS (deben actualizarse):
+  - Sección "Estructura" → Actualizar tabla de archivos
+  - Sección "Agents System" → Agregar nuevo agente
+  - Sección "Version Management" → Actualizar a v1.3.2
+
+  🟡 CAMBIOS RECOMENDADOS (podrían actualizarse):
+  - Sección "Commands System" → Actualizar ejemplo
+  - Ejemplo de código desactualizado
+
+  🟢 CAMBIOS OPCIONALES (información no crítica):
+  - Actualizar fecha de última modificación
+  - Mejorar formato de tabla
+
+📊 RESUMEN
+─────────────────────────────────────────
+Documentos a actualizar:   3/3
+Líneas a añadir (aprox):   ~42
+Líneas a eliminar (aprox): ~15
+Secciones afectadas:       7
+
+⏸️  PARA EJECUTAR REALMENTE, ejecuta:
+   /documentation:update-doc [DOCUMENTO]
+   (sin --simulacion)
+```
+
+### PASO 4: Información Detallada (si aplica)
+
+Si hay cambios significativos, proporcionar:
+
+- **Nuevos Componentes/Módulos**:
+  - Nombre: `[nombre]`
+  - Ubicación: `[ruta]`
+  - Descripción: `[propósito]`
+  - Sección a documentar: `[en qué sección de qué documento]`
+
+- **Cambios de Arquitectura**:
+  - Qué cambió: `[descripción]`
+  - Por qué: `[razón]`
+  - Documentos afectados: `[lista de docs]`
+  - Impacto en ejemplos: `[se necesitan actualizar X ejemplos]`
+
+- **Dependencias Nuevas**:
+  - Dependencia: `[nombre]`
+  - Versión: `[versión]`
+  - Ubicación en docs: `[en qué sección]`
+
+### PASO 5: Sugerencias Finales
+
+Al terminar la simulación:
+
+```
+✨ SUGERENCIAS:
+  1. Los cambios son MAYORES → Se recomienda revisar la documentación completa
+  2. La sección "Stack" debe actualizarse con nuevas dependencias
+  3. El ejemplo del paso 3 en README ya no es válido
+  4. Considerar crear una nueva sección en CLAUDE.md para el nuevo agente
+
+💾 Para aplicar estos cambios, ejecuta:
+   /documentation:update-doc [DOCUMENTO]
+```
+
+---
 
 ## Instrucciones
 1. **Determinar documento a actualizar**:
@@ -267,10 +425,138 @@ Si se detectan documentos de features eliminadas:
      - Titulo del documento.
      - Proposito del documento.
      - Secciones sugeridas para el contenido del documento (el usuario podra completarlas posteriormente).
-  
+
 ## Instrucciones adicionales obligatorias
 - Asegurarse de que todos los documentos actualizados o creados esten en formato markdown (.md).
 - Utilizar un lenguaje claro y conciso en los mensajes al usuario.
 - Verificar que la estructura de carpetas y archivos del proyecto se mantenga organizada y coherente.
 - No incluir contenido irrelevante o fuera de contexto en los documentos.
+
+---
+
+## Ejemplos de Uso
+
+### Ejemplo 1: Simular cambios para CLAUDE.md
+
+```bash
+/documentation:update-doc CLAUDE.md --simulacion
+```
+
+**Salida esperada:**
+```
+🔍 SIMULACIÓN DE ACTUALIZACIÓN: CLAUDE.md
+═════════════════════════════════════════════
+
+📊 CAMBIOS DETECTADOS EN EL REPOSITORIO
+─────────────────────────────────────────
+✅ Últimos 5 commits:
+   - docs: clarify implementer selection in /github:start and /github:next
+   - release(v1.3.2): integrate issue-analyzer in slash commands
+   - refactor: mejorar claridad de slash commands y agentes
+   - Actualizacion de las instrucciones de CLAUDE.md
+   - Correccion de errores de update-doc.md
+
+📁 ARCHIVOS MODIFICADOS
+─────────────────────────────────────────
+📝 M core/commands/github/start.md (refactor: +141 líneas)
+📝 M core/commands/github/next.md (refactor: +22 líneas)
+📝 M cli/package.json (version: 1.3.1 → 1.3.2)
+
+📋 DOCUMENTOS QUE NECESITAN ACTUALIZACIÓN
+─────────────────────────────────────────
+Para CLAUDE.md:
+
+  🔴 CAMBIOS CRÍTICOS (deben actualizarse):
+  - Sección "Technology Stack" → Verificar versiones en package.json
+  - Sección "Key Concepts" → Agregar descripción de issue-analyzer
+  - Sección "Version Management" → Actualizar a v1.3.2
+
+  🟡 CAMBIOS RECOMENDADOS (podrían actualizarse):
+  - Ejemplo de /github:start para mostrar issue-analyzer
+  - Tabla de comandos incluir nuevo flujo
+
+📊 RESUMEN
+─────────────────────────────────────────
+Documentos a actualizar:   1/3
+Líneas a añadir (aprox):   ~18
+Líneas a eliminar (aprox): ~3
+Secciones afectadas:       3
+
+⏸️  PARA EJECUTAR REALMENTE, ejecuta:
+   /documentation:update-doc CLAUDE.md
+```
+
+---
+
+### Ejemplo 2: Simular cambios para todos los documentos
+
+```bash
+/documentation:update-doc all --simulacion
+```
+
+**Salida esperada:**
+```
+🔍 SIMULACIÓN DE ACTUALIZACIÓN: ALL DOCUMENTS
+═════════════════════════════════════════════
+
+📊 CAMBIOS DETECTADOS EN EL REPOSITORIO
+─────────────────────────────────────────
+✅ Últimos 5 commits:
+   - docs: clarify implementer selection
+   - release(v1.3.2): integrate issue-analyzer
+   - refactor: mejorar claridad
+   ...
+
+📋 DOCUMENTOS QUE NECESITAN ACTUALIZACIÓN
+─────────────────────────────────────────
+
+📄 CLAUDE.md:
+  🔴 CRÍTICOS: Actualizar "Version Management" a 1.3.2
+  🟡 RECOMENDADOS: Agregar issue-analyzer
+
+📄 README.md:
+  🔴 CRÍTICOS: (ninguno)
+  🟡 RECOMENDADOS: Actualizar ejemplo de /github:start
+
+📄 CHANGELOG.md:
+  🔴 CRÍTICOS: Agregar entrada v1.3.2 si no existe
+  🟡 RECOMENDADOS: (ninguno)
+
+📊 RESUMEN
+─────────────────────────────────────────
+Documentos a actualizar:   3/3
+Secciones críticas:        2
+Secciones recomendadas:    2
+Líneas totales:            ~35
+
+⏸️  PARA EJECUTAR REALMENTE, ejecuta:
+   /documentation:update-doc all
+```
+
+---
+
+### Ejemplo 3: Ejecutar actualización real (sin simulación)
+
+```bash
+# Una vez que estés seguro, ejecuta sin --simulacion
+/documentation:update-doc CLAUDE.md
+```
+
+**Salida esperada:**
+```
+✅ Documentación Actualizada
+
+#### Cambios Detectados
+- release(v1.3.2): Nueva versión del framework
+- integrate issue-analyzer: Nuevo agente para clasificación
+- improve slash commands: Mejoras en documentación
+
+#### Documentos Actualizados
+- ✏️ CLAUDE.md: Actualizado "Version Management" y "Key Concepts"
+
+#### Validaciones
+- ✅ Límites de tamaño respetados
+- ✅ Enlaces verificados
+- ✅ Formato consistente
+```
 
