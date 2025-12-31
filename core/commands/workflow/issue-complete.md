@@ -12,6 +12,7 @@ argument-hint: |
   LIMITADORES:
     - --max=N - Máximo de issues a procesar
     - --project=N - Solo issues del proyecto #N
+    - --label=NOMBRE - Solo issues con la label NOMBRE (ejemplo: --label=bug, --label=documentation)
 
   AUTO-CARACTERÍSTICAS (Autónomas):
     - --auto-select - Auto-selecciona el issue #1 sin preguntar
@@ -32,6 +33,10 @@ argument-hint: |
     /workflow:issue-complete                                    # Modo normal
     /workflow:issue-complete --loop --max=5                    # 5 issues en bucle
     /workflow:issue-complete --loop --project=7                # Solo proyecto #7
+    /workflow:issue-complete --loop --label=bug                # Solo issues con label "bug"
+    /workflow:issue-complete --loop --label=documentation      # Solo issues con label "documentation"
+    /workflow:issue-complete --loop --project=7 --label=bug    # Proyecto #7 + label "bug"
+    /workflow:issue-complete --loop --max=10 --label=refactor  # Máximo 10 issues con label "refactor"
     /workflow:issue-complete --loop --max=20 --autonomous      # Modo autónomo completo
     /workflow:issue-complete --resume=.claude/session/workflow-session.json  # Reanudar
 ---
@@ -77,6 +82,7 @@ El flag `--autonomous` es un **alias inteligente** que habilita automáticamente
 - `--loop`: Activa modo bucle automático
 - `--max=N`: Limita a N issues como máximo
 - `--project=N`: Filtra solo issues del proyecto de GitHub #N
+- `--label=NOMBRE`: Filtra solo issues con la label especificada (ejemplo: `--label=bug`, `--label=documentation`)
 - `--autonomous`: ⭐ Habilita todas las características autónomas con valores óptimos
 - `--auto-select`: Auto-selecciona el issue #1 sin preguntar
 - `--auto-fix-reviews=N`: Permite N ciclos de auto-corrección en code review (default: 2 con --autonomous)
@@ -124,6 +130,10 @@ Antes de iniciar, detectar e interpretar todos los flags disponibles:
 
 - `--max=N`: Máximo de issues a procesar (N es número)
 - `--project=N`: Filtra solo issues del proyecto GitHub #N (N es número)
+- `--label=NOMBRE`: Filtra solo issues con la label especificada (NOMBRE es texto sin espacios)
+  - Ejemplo: `--label=bug`, `--label=documentation`, `--label=refactor`
+  - Se puede combinar con `--project=N` para filtrar por proyecto Y label simultáneamente
+  - Si se especifica múltiples veces, usar la primera ocurrencia
 - `--save-session[=ruta]`: Guarda estado después de cada issue
   - Si `--save-session=ruta/archivo.json`, guardar en esa ruta
   - Si `--save-session` sin ruta, usar default: `.claude/session/workflow-session.json`
@@ -288,6 +298,89 @@ Si se especificó `--project=N` en los argumentos:
 - Issue asignado (auto-seleccionado o elegido manualmente)
 - Clasificación del tipo de implementación (backend/frontend/fullstack)
 - Plan de implementación mostrado
+
+---
+
+### Con filtro de label (`--label=NOMBRE`)
+
+Si se especificó `--label=NOMBRE` en los argumentos:
+
+1. **Obtener todos los issues abiertos**:
+   ```bash
+   gh issue list --state open --format json --limit 1000
+   ```
+   - Extraer: `number`, `title`, `labels`, `priority` de cada issue
+
+2. **Filtrar solo issues con la label especificada**:
+   - Para cada issue, verificar si la array `labels` contiene `NOMBRE` (case-insensitive)
+   - Si coincide, incluir en lista filtrada
+   - Ejemplo: Si `--label=bug`, solo incluir issues que tengan la label "bug"
+
+3. **Clasificar por prioridad**:
+   - Clasificar issues filtrados por prioridad: critical → high → medium → low
+
+4. **Seleccionar top 5 más prioritarios con esa label**:
+   - Mostrar:
+     ```
+     Top 5 issues con label "bug":
+     1. #89 [CRÍTICA] fix: crash en login
+     2. #76 [ALTA] fix: error en upload
+     3. #54 [MEDIA] fix: typo en mensaje
+     4. #43 [MEDIA] fix: botón desalineado
+     5. #21 [BAJA] fix: comentario incorrecto
+     ```
+
+5. **Aplicar estrategia de selección**:
+   - **Si `--auto-select` o `--autonomous`**: Seleccionar automáticamente el #1 con esa label (mostrar: "✅ Auto-seleccionado con label 'bug': #89...")
+   - **Si NO auto-select**: Usar `AskUserQuestion` para que el usuario seleccione de los top 5 filtrados
+
+6. **Ejecutar `/github:start` con el issue seleccionado**:
+   - Crea rama e inicia trabajo
+   - Invoca `issue-analyzer` y `issue-planner`
+
+**Output esperado**:
+- Branch creada
+- Issue asignado con la label especificada
+- Clasificación del tipo de implementación (backend/frontend/fullstack)
+- Plan de implementación mostrado
+
+---
+
+### Combinar Filtros: Proyecto + Label (`--project=N --label=NOMBRE`)
+
+Si se especifican AMBOS parámetros:
+
+1. **Obtener issues del proyecto**:
+   ```bash
+   gh project item-list N --owner {{githubOwner}} --format json --limit 1000
+   ```
+
+2. **Filtrar por proyecto Y por label simultáneamente**:
+   - Extraer issues del proyecto (como antes)
+   - Para cada issue, verificar que tenga la label especificada
+   - Solo incluir issues que cumplan AMBAS condiciones
+
+3. **Mostrar progreso**:
+   ```
+   Filtrando issues del proyecto #7 con label "refactor"...
+   ✅ Encontrados 8 issues
+   ```
+
+4. **Seleccionar top 5 con ambos filtros**:
+   - Mostrar top 5 del proyecto #7 que tengan la label "refactor"
+   - Aplicar estrategia de selección (auto-select o preguntar)
+
+5. **Output esperado**:
+   - Issues filtrados correctamente
+   - Top 5 mostrados
+   - Issue seleccionado tiene proyecto #7 Y label especificada
+
+**Ejemplos de combinación**:
+```bash
+/workflow:issue-complete --loop --project=7 --label=bug          # Proyecto #7 + label "bug"
+/workflow:issue-complete --loop --max=5 --project=3 --label=refactor  # Máx 5, proyecto #3, label "refactor"
+/workflow:issue-complete --loop --project=7 --label=documentation --autonomous  # Proyecto #7 + label "documentation" + modo autónomo
+```
 
 ---
 
