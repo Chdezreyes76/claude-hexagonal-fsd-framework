@@ -5,9 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.2] - 2025-12-25
+## [1.3.2] - 2025-12-31
 
 ### Added
+
+#### Modular Refactorization of `/workflow:issue-complete` 🎯
+- **Simplified Core Command**: `/workflow:issue-complete` reduced from 2,386 → 271 lines (-88.6%)
+  - Focused only on core 3 modes: Normal, Loop, Autonomous
+  - 7 simplified steps without entangled logic
+  - ~10,000 tokens freed in Claude Code context
+
+- **Three Specialized Skills Created**:
+  1. **issue-complete-advanced** (850+ lines)
+     - Phases 4-6: Auto-correction, auto-resolution, session persistence
+     - Advanced parameters: `--save-session`, `--resume`, `--timeout-per-issue`, `--max-consecutive-failures`
+     - Complete state diagrams and timing tables
+     - Troubleshooting for Phases 4-6
+
+  2. **issue-complete-examples** (600+ lines)
+     - 8 complete, real-world examples with expected outputs
+     - Timing for each scenario (2-28+ minutes)
+     - Troubleshooting specific to each case
+     - Comparatives: manual vs autonomous mode
+
+  3. **issue-complete-reference** (400+ lines)
+     - Technical reference: JSON session structure, states, error codes
+     - ASCII diagram of 7-step workflow
+     - Parameter compatibility matrix
+     - 20+ error codes with solutions
+     - Timing tables by operation
+
+- **Navigation Guide**: INDEX.md in `issue-complete-advanced/`
+  - "What do you need?" decision table
+  - Quick search by keyword
+  - Map of all documentation
+  - Recommended learning paths
 
 #### Integration of Issue Analyzer in Slash Commands 🎯
 - **Automatic Issue Classification**: `/github:start` and `/github:next` now use `issue-analyzer`
