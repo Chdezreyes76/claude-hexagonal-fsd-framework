@@ -1,6 +1,39 @@
 ﻿---
 description: Orquesta el flujo completo de un issue - seleccionar, implementar, review, mergear, siguiente (con modo bucle)
 allowed-tools: Skill, AskUserQuestion, Bash(git:*), Bash(gh:*), Task
+argument-hint: |
+  Parámetros para controlar el workflow:
+
+  MODO DE OPERACIÓN:
+    - (vacío) - Ejecuta un issue y pregunta si continuar (Modo Normal)
+    - --loop - Ejecuta issues en bucle continuo (Modo Bucle)
+    - --autonomous - Alias inteligente: auto-selecciona, auto-fix, auto-merge (⭐ RECOMENDADO)
+
+  LIMITADORES:
+    - --max=N - Máximo de issues a procesar
+    - --project=N - Solo issues del proyecto #N
+
+  AUTO-CARACTERÍSTICAS (Autónomas):
+    - --auto-select - Auto-selecciona el issue #1 sin preguntar
+    - --auto-fix-reviews=N - Hasta N ciclos de auto-corrección en code review
+    - --auto-resolve-conflicts - Intenta resolver conflictos de merge automáticamente
+    - --epic-breakdown-on-failure - Convierte issues complejos a Epics
+    - --skip-on-failure - Salta issues que fallan
+
+  PERSISTENCIA Y CONTROL:
+    - --save-session[=ruta] - Guarda estado después de cada issue
+    - --resume=ruta - Reanuda sesión previa desde archivo JSON
+
+  CONFIGURACIÓN AVANZADA:
+    - --timeout-per-issue=N - Timeout máximo en minutos por issue
+    - --max-consecutive-failures=N - Circuit breaker tras N fallos consecutivos
+
+  EJEMPLOS:
+    /workflow:issue-complete                                    # Modo normal
+    /workflow:issue-complete --loop --max=5                    # 5 issues en bucle
+    /workflow:issue-complete --loop --project=7                # Solo proyecto #7
+    /workflow:issue-complete --loop --max=20 --autonomous      # Modo autónomo completo
+    /workflow:issue-complete --resume=.claude/session/workflow-session.json  # Reanudar
 ---
 
 # Workflow: Issue Complete for $ARGUMENTS
